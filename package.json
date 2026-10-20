@@ -1,0 +1,33 @@
+{
+  "name": "testtextai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "backend/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n \"API,VITE\" -c \"blue,green\" \"node backend/server.js\" \"vite\"",
+    "server": "node backend/server.js",
+    "vite": "vite",
+    "build": "vite build",
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "^10.6.1",
+    "canvas-confetti": "^1.9.4",
+    "concurrently": "^10.0.6",
+    "cors": "^2.8.6",
+    "diff": "^9.0.0",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "lucide-react": "^1.60.0",
+    "mammoth": "^1.13.0",
+    "multer": "^2.4.0",
+    "postcss": "^8.5.31",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
+  }
+}
