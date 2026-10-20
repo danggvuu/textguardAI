@@ -44,7 +44,7 @@ app.get('/api/presets', (req, res) => {
 // Scan / Fetch Models from 9Router or OpenRouter endpoint
 app.post('/api/models', async (req, res) => {
   try {
-    const { baseUrl = 'http://localhost:20128/v1', apiKey = '' } = req.body;
+    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', includeInternal = false } = req.body;
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
 
@@ -73,21 +73,122 @@ app.post('/api/models', async (req, res) => {
     const data = await response.json();
     const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
 
-    const models = rawList.map(item => ({
-      id: item.id || item.name,
-      owned_by: item.owned_by || '',
-      context_length: item.context_length || item.capabilities?.contextWindow || null
-    })).filter(m => Boolean(m.id));
+    // 1. Separate top combos (the primary models configured in 9Router)
+    const comboIds = ['open', 'claude', 'gehihi'];
+    const combos = [];
+    const regularModels = [];
+
+    rawList.forEach(item => {
+      const id = item.id || item.name;
+      if (!id) return;
+
+      const isCombo = item.owned_by === 'combo' || comboIds.includes(id);
+      
+      // Determine brand/category
+      let category = 'other';
+      const lower = id.toLowerCase();
+      if (isCombo) {
+        category = 'combo';
+      } else if (lower.includes('claude') || lower.startsWith('cl/')) {
+        category = 'anthropic';
+      } else if (lower.includes('gpt') || lower.startsWith('cx/') || lower.startsWith('cu/') || lower.startsWith('gh/') || lower.includes('o1') || lower.includes('openai')) {
+        category = 'openai';
+      } else if (lower.includes('gemini') || lower.startsWith('gehihi')) {
+        category = 'gemini';
+      } else if (lower.includes('deepseek') || lower.includes('qwen') || lower.includes('llama') || lower.includes('mistral') || lower.includes('venice')) {
+        category = 'open_source';
+      }
+
+      const formatted = {
+        id,
+        owned_by: item.owned_by || '',
+        category,
+        isCombo,
+        context_length: item.context_length || item.capabilities?.contextWindow || null
+      };
+
+      if (isCombo) {
+        combos.push(formatted);
+      } else {
+        // Filter out internal sub-endpoints unless explicitly requested
+        if (!includeInternal) {
+          if (id.includes('~') || id.includes(':batch') || id.includes('[1m]')) return;
+          if (/embed|moderation|tts|whisper|dall-e|flux|sdxl|rerank|clip/i.test(id)) return;
+        }
+        regularModels.push(formatted);
+      }
+    });
+
+    // Combos first, then regular models
+    const sorted = [...combos, ...regularModels];
 
     return res.json({
       success: true,
-      count: models.length,
-      models
+      count: sorted.length,
+      combos,
+      models: sorted
     });
   } catch (error) {
     console.error('Fetch models error:', error);
     return res.status(500).json({
       error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`
+    });
+  }
+});
+
+// Ping / Test a specific model on 9Router or OpenRouter
+app.post('/api/models/test', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'claude' } = req.body;
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const chatEndpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey.trim()) {
+      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const response = await fetch(chatEndpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'Say OK' }],
+        max_tokens: 5
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const latencyMs = Date.now() - startTime;
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({
+        success: false,
+        latencyMs,
+        error: `Model "${model}" trả về lỗi (${response.status}): ${errText}`
+      });
+    }
+
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content?.trim() || 'OK';
+
+    return res.json({
+      success: true,
+      model,
+      latencyMs,
+      reply
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      latencyMs: Date.now() - startTime,
+      error: `Không thể kết nối tới Model: ${error.message}`
     });
   }
 });

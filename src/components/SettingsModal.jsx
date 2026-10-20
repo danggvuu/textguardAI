@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Sliders,
-  Key,
   Check,
   AlertCircle,
   ShieldCheck,
@@ -11,7 +10,9 @@ import {
   RefreshCw,
   Server,
   Sparkles,
-  ChevronRight
+  Activity,
+  CheckCircle2,
+  Filter
 } from 'lucide-react';
 
 export default function SettingsModal({ isOpen, onClose, t }) {
@@ -23,9 +24,16 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
   // Model scanner states
   const [models, setModels] = useState([]);
+  const [combos, setCombos] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all' | 'combo' | 'openai' | 'anthropic' | 'gemini' | 'open_source'
+  const [showInternal, setShowInternal] = useState(false);
+
+  // Live model test ping
+  const [isTestingModel, setIsTestingModel] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,41 +47,43 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       setOpenRouterBaseUrl(storedOrUrl);
       setOpenRouterModel(storedOrModel);
       setSaved(false);
+      setTestResult(null);
 
       // Auto scan if 9router endpoint
       if (storedOrUrl.includes('20128')) {
-        handleScanModels(storedOrUrl, storedOrKey);
+        handleScanModels(storedOrUrl, storedOrKey, false);
       }
     }
   }, [isOpen]);
 
   // Handle Model Scanning from Endpoint
-  const handleScanModels = async (urlOverride, keyOverride) => {
+  const handleScanModels = async (urlOverride, keyOverride, internalFlag) => {
     const url = urlOverride || openRouterBaseUrl;
     const key = keyOverride !== undefined ? keyOverride : openRouterKey;
+    const internal = internalFlag !== undefined ? internalFlag : showInternal;
 
     setIsScanning(true);
-    setScanMessage({ text: 'Đang kết nối & quét danh sách model...', type: 'info' });
+    setScanMessage({ text: 'Đang kết nối & lọc danh sách model khả dụng...', type: 'info' });
 
     try {
       const res = await fetch('/api/models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseUrl: url, apiKey: key })
+        body: JSON.stringify({ baseUrl: url, apiKey: key, includeInternal: internal })
       });
 
       const data = await res.json();
       if (data.models && data.models.length > 0) {
         setModels(data.models);
+        setCombos(data.combos || []);
         setScanMessage({
-          text: `Thành công! Đã quét được ${data.count} models từ endpoint.`,
+          text: `Đã lọc và tìm thấy ${data.count} models khả dụng từ 9Router!`,
           type: 'success'
         });
 
-        // If current model not in list or default, pick first combo or first model
-        if (!openRouterModel) {
-          const combo = data.models.find(m => m.id === 'open' || m.id === 'claude' || m.id === 'gehihi');
-          if (combo) setOpenRouterModel(combo.id);
+        // If no model selected, default to top combo
+        if (!openRouterModel && data.combos?.length > 0) {
+          setOpenRouterModel(data.combos[0].id);
         }
       } else {
         setScanMessage({
@@ -88,6 +98,32 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       });
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  // Live Ping / Test selected model
+  const handleTestSelectedModel = async () => {
+    if (!openRouterModel) return;
+    setIsTestingModel(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch('/api/models/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseUrl: openRouterBaseUrl,
+          apiKey: openRouterKey,
+          model: openRouterModel
+        })
+      });
+
+      const data = await res.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({ success: false, error: err.message });
+    } finally {
+      setIsTestingModel(false);
     }
   };
 
@@ -108,20 +144,24 @@ export default function SettingsModal({ isOpen, onClose, t }) {
     }, 600);
   };
 
-  // Filtered models
-  const filteredModels = models.filter((m) =>
-    m.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.owned_by.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter models by category and search query
+  const filteredModels = models.filter((m) => {
+    const matchesSearch =
+      m.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.owned_by.toLowerCase().includes(searchQuery.toLowerCase());
 
-  // Detect 9Router combos
-  const comboModels = models.filter(m => ['open', 'claude', 'gehihi'].includes(m.id) || m.owned_by === 'combo');
+    if (!matchesSearch) return false;
+
+    if (selectedCategory === 'all') return true;
+    if (selectedCategory === 'combo') return m.isCombo;
+    return m.category === selectedCategory;
+  });
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -129,8 +169,8 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               <Sliders className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-zinc-900">Quét & Cấu hình Model AI (9Router / OpenRouter)</h3>
-              <p className="text-[11px] text-zinc-500">Tự động nhận diện toàn bộ model từ proxy local hoặc cloud</p>
+              <h3 className="font-bold text-sm text-zinc-900">Quét & Lọc Model Hoạt Động (9Router)</h3>
+              <p className="text-[11px] text-zinc-500">Chỉ lọc ra các AI và Combo thực sự sử dụng được</p>
             </div>
           </div>
           <button
@@ -172,7 +212,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
-                    Mô hình Stanford HC3 & RAID Forensic NLP. Chạy ngay lập tức không cần key.
+                    Stanford HC3 & RAID Forensic NLP. Chạy ngay không cần key hay proxy.
                   </p>
                 </div>
               </label>
@@ -196,11 +236,11 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   <div className="flex items-center gap-1.5">
                     <span className="font-bold text-xs text-zinc-900">Bản PRO Chuyên Sâu</span>
                     <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700">
-                      9Router / OpenRouter
+                      9Router Proxy
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
-                    Kết nối 9Router Proxy hoặc OpenRouter để gọi các combo model cực mạnh.
+                    Sử dụng các combo AI mạnh nhất trên máy bạn (`open`, `claude`, `gehihi`...).
                   </p>
                 </div>
               </label>
@@ -213,7 +253,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               {/* Endpoint Preset Selector */}
               <div>
                 <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                  Chọn máy chủ Proxy (Endpoint)
+                  Địa chỉ Proxy (Endpoint)
                 </label>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <button
@@ -224,7 +264,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                       openRouterBaseUrl.includes('20128')
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold'
                         : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
                     }`}
                   >
@@ -240,7 +280,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                       openRouterBaseUrl.includes('openrouter.ai')
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold'
                         : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
                     }`}
                   >
@@ -261,7 +301,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider">
-                    API Key (Key 9Router hoặc OpenRouter)
+                    API Key
                   </label>
                   {openRouterBaseUrl.includes('20128') && (
                     <span className="text-[11px] text-zinc-500">
@@ -273,13 +313,13 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   type="password"
                   value={openRouterKey}
                   onChange={(e) => setOpenRouterKey(e.target.value)}
-                  placeholder={openRouterBaseUrl.includes('20128') ? 'Dán key tạo từ 9Router vào đây' : 'sk-or-v1-...'}
+                  placeholder={openRouterBaseUrl.includes('20128') ? 'Dán API Key tạo từ 9Router vào đây' : 'sk-or-v1-...'}
                   className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                 />
               </div>
 
               {/* Scan Models Button */}
-              <div className="pt-1">
+              <div>
                 <button
                   type="button"
                   onClick={() => handleScanModels()}
@@ -287,13 +327,12 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-                  <span>{isScanning ? 'Đang quét danh sách model...' : '🔍 Quét danh sách Model từ Endpoint'}</span>
+                  <span>{isScanning ? 'Đang quét và lọc AI...' : '🔍 Quét & Lọc Model Khả Dụng'}</span>
                 </button>
 
-                {/* Scan Status Message */}
                 {scanMessage && (
                   <div
-                    className={`mt-2 p-2 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                    className={`mt-2 p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
                       scanMessage.type === 'success'
                         ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                         : scanMessage.type === 'error'
@@ -306,56 +345,189 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                 )}
               </div>
 
-              {/* Quick Select for 9Router Combos */}
-              {comboModels.length > 0 && (
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                    Combo gợi ý từ 9Router của bạn:
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {comboModels.map((combo) => (
-                      <button
-                        key={combo.id}
-                        type="button"
-                        onClick={() => setOpenRouterModel(combo.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                          openRouterModel === combo.id
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                            : 'bg-white text-zinc-800 border-zinc-200 hover:border-indigo-400'
-                        }`}
-                      >
-                        <Sparkles className="w-3 h-3 text-amber-400" />
-                        <span>{combo.id}</span>
-                        <span className="text-[10px] opacity-75 font-normal">(Combo)</span>
-                      </button>
-                    ))}
+              {/* FEATURED: 9Router Combos (TOP PRIORITY) */}
+              <div className="p-3.5 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 rounded-xl border border-indigo-200/80">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs font-bold text-zinc-900">
+                    Combo Đã Kích Hoạt Trong 9Router Của Bạn (Khuyên dùng):
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Combo 1: open */}
+                  <div
+                    onClick={() => setOpenRouterModel('open')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'open'
+                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
+                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">open</span>
+                      {openRouterModel === 'open' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-500 line-clamp-1">GPT-5.3 & Codex Pool</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700">
+                      180+ models
+                    </span>
                   </div>
+
+                  {/* Combo 2: claude */}
+                  <div
+                    onClick={() => setOpenRouterModel('claude')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'claude'
+                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
+                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">claude</span>
+                      {openRouterModel === 'claude' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-500 line-clamp-1">Claude Fable & Sonnet</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700">
+                      78+ models
+                    </span>
+                  </div>
+
+                  {/* Combo 3: gehihi */}
+                  <div
+                    onClick={() => setOpenRouterModel('gehihi')}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'gehihi'
+                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
+                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">gehihi</span>
+                      {openRouterModel === 'gehihi' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-500 line-clamp-1">Gemini 3 & 2.5 Flash</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700">
+                      144+ models
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selected Model & Test Status Header */}
+              <div className="p-3 bg-white rounded-xl border border-zinc-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-500">Đang chọn:</span>
+                  <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                    {openRouterModel || 'Chưa chọn'}
+                  </span>
+                </div>
+
+                {/* Test button */}
+                <button
+                  type="button"
+                  onClick={handleTestSelectedModel}
+                  disabled={isTestingModel || !openRouterModel}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white transition-colors cursor-pointer"
+                >
+                  <Activity className={`w-3.5 h-3.5 text-emerald-400 ${isTestingModel ? 'animate-pulse' : ''}`} />
+                  <span>{isTestingModel ? 'Đang test...' : '🧪 Test phản hồi Model'}</span>
+                </button>
+              </div>
+
+              {/* Test Result Message */}
+              {testResult && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                    testResult.success
+                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
+                      : 'bg-rose-50 text-rose-900 border border-rose-300'
+                  }`}
+                >
+                  {testResult.success ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Model "{testResult.model}" hoạt động hoàn hảo!</span>
+                        <span className="text-[11px] block text-emerald-700">
+                          Độ trễ: <strong>{testResult.latencyMs}ms</strong> • Phản hồi: "{testResult.reply}"
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Lỗi kết nối tới Model:</span>
+                        <p className="text-[11px] text-rose-700 mt-0.5">{testResult.error}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
+              {/* Category Filter Tabs */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider">
+                    Lọc theo dòng AI:
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showInternal}
+                      onChange={(e) => {
+                        setShowInternal(e.target.checked);
+                        handleScanModels(openRouterBaseUrl, openRouterKey, e.target.checked);
+                      }}
+                      className="rounded text-indigo-600"
+                    />
+                    <span>Hiện sub-model nội bộ</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-1 bg-zinc-100 p-1 rounded-xl border border-zinc-200/60 text-xs">
+                  {[
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'combo', label: '🌟 Combo' },
+                    { id: 'openai', label: '🤖 OpenAI' },
+                    { id: 'anthropic', label: '🧠 Claude' },
+                    { id: 'gemini', label: '⚡ Gemini' },
+                    { id: 'open_source', label: '🚀 Open-Source' }
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                        selectedCategory === cat.id
+                          ? 'bg-white text-zinc-900 shadow-xs font-bold'
+                          : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Searchable Model Picker */}
               <div>
-                <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                  Model đang chọn: <span className="font-mono text-indigo-600 font-bold">{openRouterModel || 'Chưa chọn'}</span>
-                </label>
-
                 {models.length > 0 ? (
                   <div className="space-y-2">
-                    {/* Search input */}
                     <div className="relative">
                       <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-3" />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder={`Tìm kiếm trong ${models.length} model (vd: claude, gpt-6, o1, gehihi...)`}
+                        placeholder={`Tìm trong ${filteredModels.length} model khả dụng...`}
                         className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                       />
                     </div>
 
-                    {/* Filtered Model List (Scrollable) */}
-                    <div className="max-h-44 overflow-y-auto border border-zinc-200 rounded-xl bg-white p-1 space-y-0.5">
-                      {filteredModels.slice(0, 80).map((m) => (
+                    <div className="max-h-40 overflow-y-auto border border-zinc-200 rounded-xl bg-white p-1 space-y-0.5">
+                      {filteredModels.slice(0, 100).map((m) => (
                         <div
                           key={m.id}
                           onClick={() => setOpenRouterModel(m.id)}
@@ -366,6 +538,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                           }`}
                         >
                           <div className="flex items-center gap-2 truncate">
+                            {m.isCombo && <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
                             <span className="font-mono truncate">{m.id}</span>
                             {m.owned_by && (
                               <span className="text-[9px] px-1 py-0.2 rounded bg-zinc-100 text-zinc-500">
@@ -378,7 +551,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                       ))}
                       {filteredModels.length === 0 && (
                         <div className="p-3 text-center text-xs text-zinc-400 italic">
-                          Không tìm thấy model nào khớp với từ khóa "{searchQuery}".
+                          Không có model nào khớp với bộ lọc này.
                         </div>
                       )}
                     </div>
@@ -389,12 +562,9 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                       type="text"
                       value={openRouterModel}
                       onChange={(e) => setOpenRouterModel(e.target.value)}
-                      placeholder="open, claude, gehihi, gpt-4o..."
+                      placeholder="open, claude, gehihi..."
                       className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                     />
-                    <p className="text-[11px] text-zinc-500 mt-1">
-                      Bấm nút <strong>"Quét danh sách Model"</strong> ở trên để tự động tải hơn 600+ model từ 9Router của bạn.
-                    </p>
                   </div>
                 )}
               </div>
@@ -405,7 +575,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-100 bg-zinc-50/80 shrink-0">
           <span className="text-[11px] text-zinc-500">
-            {models.length > 0 ? `Đã đồng bộ ${models.length} model` : 'Chế độ: ' + (provider === 'pro' ? 'PRO (9Router)' : 'Miễn Phí')}
+            {models.length > 0 ? `Đã lọc ${models.length} model dùng được` : 'Chế độ: ' + (provider === 'pro' ? 'PRO (9Router)' : 'Miễn Phí')}
           </span>
 
           <div className="flex items-center gap-2.5">
