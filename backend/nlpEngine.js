@@ -336,5 +336,32 @@ TRANSFORMATION RULES:
     return data?.choices?.[0]?.message?.content?.trim();
   }
 
+  if (provider === 'openrouter') {
+    const cleanBaseUrl = (config.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+    const url = `${cleanBaseUrl}/chat/completions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://textguard.ai',
+        'X-Title': 'TextGuard AI Humanizer'
+      },
+      body: JSON.stringify({
+        model: model || 'google/gemini-2.0-flash-001',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: strength === 'aggressive' ? 0.9 : 0.75
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`OpenRouter API Error: ${response.status} - ${err}`);
+    }
+
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content?.trim();
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
 }

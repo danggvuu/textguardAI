@@ -6,6 +6,7 @@ import DetectorView from './components/DetectorView';
 import DiffViewer from './components/DiffViewer';
 import PresetsModal from './components/PresetsModal';
 import SettingsModal from './components/SettingsModal';
+import Toast from './components/Toast';
 import { translations } from './lib/i18n';
 import confetti from 'canvas-confetti';
 
@@ -20,18 +21,27 @@ export default function App() {
   const [beforeStats, setBeforeStats] = useState(null);
   const [afterStats, setAfterStats] = useState(null);
 
-  // Detector states
+  // Detector states & Tier
   const [detectorText, setDetectorText] = useState('');
   const [detectorData, setDetectorData] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [detectorMode, setDetectorMode] = useState('free'); // 'free' | 'pro'
 
   // Processing state & stage text
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
 
-  // Modals
+  // Modals & Toast
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPresetsOpen, setIsPresetsOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (toastData) => {
+    setToast(toastData);
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   // Initial default sample if empty
   useEffect(() => {
@@ -39,6 +49,11 @@ export default function App() {
       setInputText(
         `Không thể phủ nhận rằng trong kỷ nguyên số hiện nay, trí tuệ nhân tạo đang đóng một vai trò vô cùng quan trọng đối với sự phát triển kinh tế toàn cầu. Các giải pháp tự động hóa thông minh không chỉ giúp tối ưu hóa chi phí sản xuất mà còn nâng cao hiệu suất làm việc của người lao động một cách toàn diện. Hơn nữa, việc ứng dụng công nghệ điện toán đám mây kết hợp cùng thuật toán máy học đã mở ra một kỷ nguyên mới cho ngành quản trị kinh doanh.`
       );
+    }
+
+    const storedEngine = localStorage.getItem('tg_provider');
+    if (storedEngine === 'pro') {
+      setDetectorMode('pro');
     }
   }, []);
 
@@ -49,7 +64,6 @@ export default function App() {
     setIsProcessing(true);
     setProcessingStage(t.stages[0]);
 
-    // Stage ticker simulation for realistic experience
     const stageTimer1 = setTimeout(() => {
       setProcessingStage(t.stages[1].replace('{readability}', options.readability));
     }, 400);
@@ -63,9 +77,10 @@ export default function App() {
     }, 1200);
 
     try {
-      const storedProvider = localStorage.getItem('tg_provider') || 'local';
-      const storedKey = localStorage.getItem('tg_api_key') || '';
-      const storedModel = localStorage.getItem('tg_model') || 'gemini-1.5-flash';
+      const storedProvider = localStorage.getItem('tg_provider') || 'free';
+      const storedKey = localStorage.getItem('tg_openrouter_key') || localStorage.getItem('tg_api_key') || '';
+      const storedUrl = localStorage.getItem('tg_openrouter_url') || 'https://openrouter.ai/api/v1';
+      const storedModel = localStorage.getItem('tg_openrouter_model') || 'google/gemini-2.0-flash-001';
 
       const res = await fetch('/api/humanize', {
         method: 'POST',
@@ -76,8 +91,9 @@ export default function App() {
           readability: options.readability,
           purpose: options.purpose,
           apiKey: storedKey,
-          provider: storedProvider,
-          model: storedModel
+          provider: storedProvider === 'pro' ? 'openrouter' : 'local',
+          model: storedModel,
+          baseUrl: storedUrl
         })
       });
 
@@ -92,19 +108,21 @@ export default function App() {
         setBeforeStats(data.beforeStats);
         setAfterStats(data.afterStats);
 
-        // Celebration confetti if human score is excellent
+        showToast({ message: 'Văn bản đã được nhân bản hóa thành công!', type: 'success' });
+
+        // Celebration confetti if human score is high
         if (data.afterStats?.humanScore >= 80) {
           confetti({
-            particleCount: 60,
-            spread: 70,
+            particleCount: 50,
+            spread: 60,
             origin: { y: 0.6 }
           });
         }
       } else if (data.error) {
-        alert(data.error);
+        showToast({ message: data.error, type: 'error' });
       }
     } catch (err) {
-      alert('Lỗi kết nối máy chủ: ' + err.message);
+      showToast({ message: 'Lỗi kết nối máy chủ: ' + err.message, type: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -117,15 +135,41 @@ export default function App() {
 
     setIsDetecting(true);
     try {
+      const storedKey = localStorage.getItem('tg_openrouter_key') || '';
+      const storedUrl = localStorage.getItem('tg_openrouter_url') || 'https://openrouter.ai/api/v1';
+      const storedModel = localStorage.getItem('tg_openrouter_model') || 'google/gemini-2.0-flash-001';
+
+      if (detectorMode === 'pro' && !storedKey) {
+        showToast({ message: 'Chưa cấu hình OpenRouter Key. Vui lòng mở Cài đặt.', type: 'error' });
+        setIsSettingsOpen(true);
+        setIsDetecting(false);
+        return;
+      }
+
       const res = await fetch('/api/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({
+          text,
+          tier: detectorMode,
+          openRouterKey: storedKey,
+          openRouterBaseUrl: storedUrl,
+          openRouterModel: storedModel
+        })
       });
+
       const data = await res.json();
-      setDetectorData(data);
+      if (data.error) {
+        showToast({ message: data.error, type: 'error' });
+      } else {
+        setDetectorData(data);
+        showToast({
+          message: `Phân tích hoàn tất: ${data.humanScore}% Điểm người viết (${data.tier === 'pro' ? 'Bản PRO' : 'Model Miễn phí'})`,
+          type: 'success'
+        });
+      }
     } catch (err) {
-      alert('Lỗi khi phân tích: ' + err.message);
+      showToast({ message: 'Lỗi khi phân tích: ' + err.message, type: 'error' });
     } finally {
       setIsDetecting(false);
     }
@@ -143,10 +187,13 @@ export default function App() {
   const handleSendToHumanizer = (sentence) => {
     setInputText(sentence);
     setActiveTab('humanize');
+    showToast({ message: 'Đã chuyển câu vào Trình nhân bản hóa', type: 'info' });
   };
 
+  const storedProvider = typeof window !== 'undefined' ? localStorage.getItem('tg_provider') : 'free';
+
   return (
-    <div className="min-h-screen bg-[#fbfcff] flex flex-col justify-between">
+    <div className="min-h-screen bg-[#fbfbfd] flex flex-col justify-between selection:bg-indigo-500/20 selection:text-indigo-900">
       <div>
         {/* Navigation Header */}
         <Header
@@ -156,6 +203,7 @@ export default function App() {
           setLang={setLang}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenPresets={() => setIsPresetsOpen(true)}
+          currentEngine={detectorMode}
           t={t}
         />
 
@@ -177,6 +225,7 @@ export default function App() {
             onCheckAI={handleCheckAI}
             onViewDiff={() => setActiveTab('diff')}
             onOpenPresets={() => setIsPresetsOpen(true)}
+            onShowToast={showToast}
             t={t}
           />
         )}
@@ -191,6 +240,12 @@ export default function App() {
               onRunDetect={handleDetect}
               isDetecting={isDetecting}
               onSendToHumanizer={handleSendToHumanizer}
+              detectorMode={detectorMode}
+              setDetectorMode={(mode) => {
+                setDetectorMode(mode);
+                localStorage.setItem('tg_provider', mode);
+              }}
+              onOpenSettings={() => setIsSettingsOpen(true)}
               t={t}
             />
           </div>
@@ -210,28 +265,29 @@ export default function App() {
       </div>
 
       {/* Footer */}
-      <footer className="w-full border-t border-slate-200 bg-white py-6 px-4 text-center text-xs text-slate-500 font-medium">
+      <footer className="w-full border-t border-zinc-200/80 bg-white py-6 px-4 text-center text-xs text-zinc-500 font-medium">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 TextGuard AI • Mô phỏng hoàn chỉnh cho mục đích kiểm thử và tối ưu văn bản tự nhiên</p>
-          <div className="flex items-center gap-4 text-slate-600">
-            <span className="hover:text-[#6248ff] cursor-pointer">Điều khoản</span>
+          <p>© 2026 TextGuard AI • Thiết kế theo chuẩn giao diện hiện đại Shadcn & Vercel AI Elements</p>
+          <div className="flex items-center gap-4 text-zinc-600">
+            <span className="hover:text-zinc-950 cursor-pointer">Bảo mật</span>
             <span>•</span>
-            <span className="hover:text-[#6248ff] cursor-pointer">Bảo mật</span>
+            <span className="hover:text-zinc-950 cursor-pointer">Chuẩn HC3 & RAID</span>
             <span>•</span>
-            <span className="hover:text-[#6248ff] cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
-              Cài đặt API
+            <span className="hover:text-indigo-600 cursor-pointer font-bold" onClick={() => setIsSettingsOpen(true)}>
+              Cài đặt API (OpenRouter)
             </span>
           </div>
         </div>
       </footer>
 
-      {/* Modals */}
+      {/* Modals & Toast */}
       <PresetsModal
         isOpen={isPresetsOpen}
         onClose={() => setIsPresetsOpen(false)}
         onSelectPreset={(text) => {
           setInputText(text);
           if (activeTab !== 'humanize') setActiveTab('humanize');
+          showToast({ message: 'Đã tải bài mẫu thử nghiệm', type: 'info' });
         }}
       />
 
@@ -240,6 +296,8 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         t={t}
       />
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

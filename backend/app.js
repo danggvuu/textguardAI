@@ -42,14 +42,27 @@ app.get('/api/presets', (req, res) => {
 });
 
 // AI Detection Endpoint
-app.post('/api/detect', (req, res) => {
+app.post('/api/detect', async (req, res) => {
   try {
-    const { text } = req.body;
+    const {
+      text,
+      tier = 'free',
+      openRouterKey,
+      openRouterBaseUrl,
+      openRouterModel
+    } = req.body;
+
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Văn bản không được để trống' });
     }
 
-    const result = detectAIText(text);
+    const result = await detectAIText(text, {
+      tier,
+      openRouterKey,
+      openRouterBaseUrl,
+      openRouterModel
+    });
+
     return res.json(result);
   } catch (error) {
     console.error('Detection error:', error);
@@ -68,7 +81,8 @@ app.post('/api/humanize', async (req, res) => {
       purpose = 'general',
       apiKey,
       provider = 'gemini',
-      model = 'gemini-1.5-flash'
+      model = 'gemini-1.5-flash',
+      baseUrl
     } = req.body;
 
     if (!text || !text.trim()) {
@@ -84,7 +98,7 @@ app.post('/api/humanize', async (req, res) => {
         humanizedText = await humanizeWithLLM(
           text,
           { strength, readability, purpose },
-          { apiKey: apiKey.trim(), provider, model }
+          { apiKey: apiKey.trim(), provider, model, baseUrl }
         );
         engineUsed = provider;
       } catch (llmErr) {
@@ -99,8 +113,8 @@ app.post('/api/humanize', async (req, res) => {
     }
 
     // 3. Compute stats for before & after
-    const beforeStats = detectAIText(text);
-    const afterStats = detectAIText(humanizedText);
+    const beforeStats = await detectAIText(text);
+    const afterStats = await detectAIText(humanizedText);
 
     const processingTimeMs = Date.now() - startTime;
 

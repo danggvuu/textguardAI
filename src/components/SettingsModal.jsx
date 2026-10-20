@@ -1,29 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sliders, Key, Cpu, Check, AlertCircle, ShieldCheck } from 'lucide-react';
+import { X, Sliders, Key, Cpu, Check, AlertCircle, ShieldCheck, Zap } from 'lucide-react';
 
 export default function SettingsModal({ isOpen, onClose, t }) {
-  const [provider, setProvider] = useState('local');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-1.5-flash');
+  const [provider, setProvider] = useState('free');
+  const [openRouterKey, setOpenRouterKey] = useState('');
+  const [openRouterBaseUrl, setOpenRouterBaseUrl] = useState('https://openrouter.ai/api/v1');
+  const [openRouterModel, setOpenRouterModel] = useState('google/gemini-2.0-flash-001');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      const storedProvider = localStorage.getItem('tg_provider') || 'local';
-      const storedKey = localStorage.getItem('tg_api_key') || '';
-      const storedModel = localStorage.getItem('tg_model') || 'gemini-1.5-flash';
+      const storedProvider = localStorage.getItem('tg_provider') || 'free';
+      const storedOrKey = localStorage.getItem('tg_openrouter_key') || '';
+      const storedOrUrl = localStorage.getItem('tg_openrouter_url') || 'https://openrouter.ai/api/v1';
+      const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'google/gemini-2.0-flash-001';
 
       setProvider(storedProvider);
-      setApiKey(storedKey);
-      setModel(storedModel);
+      setOpenRouterKey(storedOrKey);
+      setOpenRouterBaseUrl(storedOrUrl);
+      setOpenRouterModel(storedOrModel);
       setSaved(false);
     }
   }, [isOpen]);
 
   const handleSave = () => {
     localStorage.setItem('tg_provider', provider);
-    localStorage.setItem('tg_api_key', apiKey.trim());
-    localStorage.setItem('tg_model', model);
+    localStorage.setItem('tg_openrouter_key', openRouterKey.trim());
+    localStorage.setItem('tg_openrouter_url', openRouterBaseUrl.trim());
+    localStorage.setItem('tg_openrouter_model', openRouterModel.trim());
+    
+    // Also save as global api key for humanizer
+    localStorage.setItem('tg_api_key', openRouterKey.trim());
+    localStorage.setItem('tg_model', openRouterModel.trim());
+
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
@@ -35,7 +44,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div className="flex items-center gap-2">
@@ -43,8 +52,8 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               <Sliders className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base text-[#101828]">{t.settingsTitle}</h3>
-              <p className="text-xs text-slate-500">Tùy biến động cơ nhân bản hóa văn bản</p>
+              <h3 className="font-extrabold text-base text-[#101828]">Cấu hình Model & API Detector</h3>
+              <p className="text-xs text-slate-500">Chọn chế độ Miễn phí (Free) hoặc cắm key OpenRouter (9router)</p>
             </div>
           </div>
           <button
@@ -60,142 +69,130 @@ export default function SettingsModal({ isOpen, onClose, t }) {
           {/* Engine Choice */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              {t.settingsEngine}
+              Chế độ vận hành
             </label>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
+              {/* Option 1: Free Mode */}
               <label
-                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                  provider === 'local'
-                    ? 'border-[#6248ff] bg-[#f8f7ff]'
+                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  provider === 'free'
+                    ? 'border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
               >
                 <input
                   type="radio"
                   name="engine"
-                  checked={provider === 'local'}
-                  onChange={() => setProvider('local')}
+                  checked={provider === 'free'}
+                  onChange={() => setProvider('free')}
+                  className="mt-1 text-emerald-600 focus:ring-emerald-500"
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-slate-900">
+                      Bản Miễn Phí (Free Model + HC3 Benchmark)
+                    </span>
+                    <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                      100% Free
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Sử dụng mô hình <strong>RoBERTa-ChatGPT-Detector</strong> (Hugging Face) kết hợp thuật toán giám định ngôn ngữ học đa tầng (HC3 & RAID Standard). Tự động phát hiện chiêu trò xưng "t" và văn mẫu triết lý chữa lành.
+                  </p>
+                </div>
+              </label>
+
+              {/* Option 2: Pro Mode (OpenRouter / 9router) */}
+              <label
+                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                  provider === 'pro'
+                    ? 'border-[#6248ff] bg-[#f8f7ff] ring-1 ring-[#6248ff]'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="engine"
+                  checked={provider === 'pro'}
+                  onChange={() => setProvider('pro')}
                   className="mt-1 text-[#6248ff] focus:ring-[#6248ff]"
                 />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs text-slate-900">
-                      Smart NLP Offline Engine
+                      Bản Chuyên Sâu PRO (Cắm Key OpenRouter / 9router)
                     </span>
-                    <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                      Mặc định • Miễn phí
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Sử dụng bộ quy tắc ngôn ngữ học tái cấu trúc câu, loại bỏ cliché và tăng Burstiness cục bộ không cần API Key.
-                  </p>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                  provider === 'gemini'
-                    ? 'border-[#6248ff] bg-[#f8f7ff]'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="engine"
-                  checked={provider === 'gemini'}
-                  onChange={() => setProvider('gemini')}
-                  className="mt-1 text-[#6248ff] focus:ring-[#6248ff]"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-slate-900">Google Gemini API</span>
                     <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-100 text-[#6248ff]">
-                      Tốc độ cao • Siêu tự nhiên
+                      VIP • Deep Forensic
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Sử dụng prompt anti-detection chuyên sâu trên Gemini Flash để biến đổi câu từ sâu nhất.
-                  </p>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                  provider === 'openai'
-                    ? 'border-[#6248ff] bg-[#f8f7ff]'
-                    : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="engine"
-                  checked={provider === 'openai'}
-                  onChange={() => setProvider('openai')}
-                  className="mt-1 text-[#6248ff] focus:ring-[#6248ff]"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-slate-900">OpenAI API (GPT-4o)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Sử dụng mô hình OpenAI với chỉ dẫn ngôn ngữ học chống gắn cờ AI.
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Sử dụng các mô hình hàng đầu (Claude 3.5 Sonnet, GPT-4o, Gemini 2.0 Flash) đóng vai trò Giám định viên Ngôn ngữ học để bóc trần mọi thủ thuật lách AI tinh vi nhất.
                   </p>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* API Key Input (if LLM selected) */}
-          {provider !== 'local' && (
-            <div className="space-y-3 animate-in fade-in duration-200">
+          {/* OpenRouter Inputs (when Pro selected) */}
+          {provider === 'pro' && (
+            <div className="space-y-3.5 p-4 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in duration-200">
               <div>
                 <label className="flex items-center justify-between text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  <span>{t.settingsApiKey} ({provider.toUpperCase()})</span>
+                  <span>Khóa OpenRouter API Key ("9router")</span>
                   <a
-                    href={provider === 'gemini' ? 'https://aistudio.google.com/app/apikey' : 'https://platform.openai.com/api-keys'}
+                    href="https://openrouter.ai/keys"
                     target="_blank"
                     rel="noreferrer"
                     className="text-[#6248ff] hover:underline normal-case text-[11px] font-semibold"
                   >
-                    Lấy khóa API miễn phí →
+                    Lấy key tại OpenRouter.ai →
                   </a>
                 </label>
                 <input
                   type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={`Dán ${provider === 'gemini' ? 'Gemini AI Studio Key' : 'OpenAI sk-...'} vào đây`}
-                  className="w-full text-xs font-mono p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] outline-none"
+                  value={openRouterKey}
+                  onChange={(e) => setOpenRouterKey(e.target.value)}
+                  placeholder="sk-or-v1-..."
+                  className="w-full text-xs font-mono p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] outline-none bg-white"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  {t.settingsModel}
-                </label>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] outline-none bg-white cursor-pointer"
-                >
-                  {provider === 'gemini' ? (
-                    <>
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (Mới nhất, siêu nhanh)</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (Ổn định)</option>
-                      <option value="gemini-1.5-pro">Gemini 1.5 Pro (Sâu sắc nhất)</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="gpt-4o-mini">GPT-4o Mini (Nhanh & tiết kiệm)</option>
-                      <option value="gpt-4o">GPT-4o (Chất lượng cao nhất)</option>
-                    </>
-                  )}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={openRouterBaseUrl}
+                    onChange={(e) => setOpenRouterBaseUrl(e.target.value)}
+                    placeholder="https://openrouter.ai/api/v1"
+                    className="w-full text-xs font-mono p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] outline-none bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Model giám định
+                  </label>
+                  <select
+                    value={openRouterModel}
+                    onChange={(e) => setOpenRouterModel(e.target.value)}
+                    className="w-full text-xs font-semibold p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] outline-none bg-white cursor-pointer"
+                  >
+                    <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash (Cực nhanh & sắc)</option>
+                    <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Giám định đỉnh cao)</option>
+                    <option value="openai/gpt-4o">GPT-4o (Chuẩn mực)</option>
+                    <option value="openai/gpt-4o-mini">GPT-4o Mini (Tiết kiệm)</option>
+                    <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B Instruct</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 text-amber-800 text-[11px] border border-amber-200">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                <span>{t.apiKeyHint}</span>
+              <div className="flex items-start gap-2 p-2 rounded-lg bg-indigo-50 text-indigo-900 text-[11px] border border-indigo-200">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-[#6248ff] mt-0.5" />
+                <span>Khóa API được lưu an toàn trong trình duyệt (localStorage) của bạn và truyền thẳng qua backend tới OpenRouter.</span>
               </div>
             </div>
           )}
@@ -207,7 +204,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
             onClick={onClose}
             className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors"
           >
-            {t.settingsClose}
+            Đóng
           </button>
           <button
             onClick={handleSave}
@@ -219,7 +216,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                 <span>Đã lưu!</span>
               </>
             ) : (
-              <span>{t.settingsSave}</span>
+              <span>Lưu cấu hình</span>
             )}
           </button>
         </div>
