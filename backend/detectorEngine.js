@@ -10,6 +10,7 @@
  */
 
 import { detectLanguage, splitSentences } from './nlpEngine.js';
+import { resolveApiKey } from './keyHelper.js';
 
 // Top 50+ SOTA English LLM bias signatures (from HC3, RAID, and empirical GPT-4/Claude/Gemini research)
 const EN_HIGH_CONFIDENCE_TRIGGERS = [
@@ -393,20 +394,51 @@ export async function detectFreeTier(text) {
 export async function detectOpenRouterPro(text, config = {}) {
   const {
     openRouterKey,
-    openRouterBaseUrl = 'https://openrouter.ai/api/v1',
-    openRouterModel = 'google/gemini-2.0-flash-001'
+    openRouterBaseUrl = 'http://localhost:20128/v1',
+    openRouterModel = 'gehihi'
   } = config;
 
   const cleanBaseUrl = (openRouterBaseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
   const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
 
-  const effectiveKey = (openRouterKey && openRouterKey.trim()) 
-    ? openRouterKey.trim() 
-    : (cleanBaseUrl.includes('localhost') || cleanBaseUrl.includes('127.0.0.1') ? 'sk-9router-local' : '');
+  const effectiveKey = resolveApiKey(openRouterKey, cleanBaseUrl);
 
   if (!effectiveKey) {
-    throw new Error('Vui lòng nhập API Key trong Cài đặt để dùng chế độ Pro');
+    throw new Error('Vui lòng nhập API Key trong Cài đặt (hoặc bật 9Router) để dùng chế độ Pro');
   }
+
+  const prompt = `Analyze the following text with rigorous computational and forensic linguistics (calibrated against Stanford HC3 & RAID benchmarks) to determine if it is AI-generated (ChatGPT, Claude, Gemini, Llama) or written by a human.
+
+SCHEMA TO RETURN (Valid JSON strictly, no markdown backticks or commentary):
+{
+  "overallAiProbability": 85,
+  "confidence": "high",
+  "language": "en",
+  "verdict": "Văn bản do AI tạo ra",
+  "explanation": "Chi tiết đánh giá súc tích dựa trên cấu trúc câu và từ vựng",
+  "sentenceAnalysis": [
+    {
+      "text": "sentence content",
+      "aiProbability": 90,
+      "reasons": ["Dấu hiệu sáo rỗng hoặc cấu trúc AI điển hình"]
+    }
+  ],
+  "forensicMarkers": {
+    "burstinessScore": 32,
+    "perplexityScore": 45,
+    "repetitiveSyntax": 78,
+    "clicheCount": 3
+  },
+  "detectorScores": {
+    "gptzero": 86,
+    "copyleaks": 84,
+    "zerogpt": 88,
+    "crossplag": 82
+  }
+}
+
+TEXT TO ANALYZE:
+"""${text}"""`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -421,38 +453,54 @@ export async function detectOpenRouterPro(text, config = {}) {
       messages: [
         {
           role: 'system',
-          content: 'You are an expert computational forensic linguist. Reply with strictly parseable JSON.'
+          content: 'You are an expert computational forensic linguist specializing in detecting AI-generated text. Respond ONLY with valid, raw JSON.'
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      temperature: 0.1
+      temperature: 0.1,
+      max_tokens: 4000,
+      stream: false
     })
   });
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`OpenRouter Error (${response.status}): ${errorBody}`);
+    throw new Error(`Model "${openRouterModel}" (${response.status}): ${errorBody}`);
   }
 
   const data = await response.json();
   const rawReply = data?.choices?.[0]?.message?.content?.trim() || '';
 
   let jsonString = rawReply;
-  if (jsonString.includes('```json')) {
-    jsonString = jsonString.split('```json')[1].split('```')[0].trim();
-  } else if (jsonString.includes('```')) {
-    jsonString = jsonString.split('```')[1].split('```')[0].trim();
+  const codeBlockMatch = rawReply.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    jsonString = codeBlockMatch[1].trim();
+  } else if (jsonString.includes('{') && jsonString.includes('}')) {
+    const firstBrace = jsonString.indexOf('{');
+    const lastBrace = jsonString.lastIndexOf('}');
+    jsonString = jsonString.slice(firstBrace, lastBrace + 1);
   }
 
   const parsed = JSON.parse(jsonString);
 
+  // Normalize aiScore & humanScore to guarantee 100% frontend compatibility
+  const aiScore = Math.max(0, Math.min(100, Math.round(
+    parsed.overallAiProbability !== undefined
+      ? (parsed.overallAiProbability <= 1 ? parsed.overallAiProbability * 100 : parsed.overallAiProbability)
+      : (parsed.aiScore !== undefined ? parsed.aiScore : 50)
+  )));
+  const humanScore = 100 - aiScore;
+
   return {
     ...parsed,
+    aiScore,
+    humanScore,
+    overallAiProbability: aiScore,
     tier: 'pro',
-    modelUsed: `${openRouterModel} (OpenRouter SOTA Forensic Engine)`
+    modelUsed: `${openRouterModel} (9Router Pro Forensic Engine)`
   };
 }
 
@@ -463,16 +511,23 @@ export async function detectAIText(text, options = {}) {
   const {
     tier = 'free',
     openRouterKey,
-    openRouterBaseUrl,
-    openRouterModel
+    openRouterBaseUrl = 'http://localhost:20128/v1',
+    openRouterModel = 'gehihi'
   } = options;
 
-  if (tier === 'pro' && openRouterKey) {
-    return await detectOpenRouterPro(text, {
-      openRouterKey,
-      openRouterBaseUrl,
-      openRouterModel
-    });
+  if (tier === 'pro') {
+    const key = resolveApiKey(openRouterKey, openRouterBaseUrl);
+    if (key) {
+      try {
+        return await detectOpenRouterPro(text, {
+          openRouterKey: key,
+          openRouterBaseUrl,
+          openRouterModel: openRouterModel || 'gehihi'
+        });
+      } catch (err) {
+        console.warn('Pro detection failed, fallback to calibrated Free Tier:', err.message);
+      }
+    }
   }
 
   return await detectFreeTier(text);

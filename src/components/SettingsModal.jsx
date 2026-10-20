@@ -19,8 +19,9 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   const [provider, setProvider] = useState('free');
   const [openRouterKey, setOpenRouterKey] = useState('');
   const [openRouterBaseUrl, setOpenRouterBaseUrl] = useState('http://localhost:20128/v1');
-  const [openRouterModel, setOpenRouterModel] = useState('claude');
+  const [openRouterModel, setOpenRouterModel] = useState('gehihi');
   const [saved, setSaved] = useState(false);
+  const [detectedKey, setDetectedKey] = useState('');
 
   // Model scanner states
   const [models, setModels] = useState([]);
@@ -28,7 +29,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all' | 'combo' | 'openai' | 'anthropic' | 'gemini' | 'open_source'
+  const [selectedCategory, setSelectedCategory] = useState('verified'); // 'verified' | 'all' | 'combo' | 'gemini' | 'openai' | 'anthropic' | 'open_source'
   const [showInternal, setShowInternal] = useState(false);
 
   // Live model test ping
@@ -37,10 +38,10 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
   useEffect(() => {
     if (isOpen) {
-      const storedProvider = localStorage.getItem('tg_provider') || 'free';
+      const storedProvider = localStorage.getItem('tg_provider') || 'pro';
       const storedOrKey = localStorage.getItem('tg_openrouter_key') || '';
       const storedOrUrl = localStorage.getItem('tg_openrouter_url') || 'http://localhost:20128/v1';
-      const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'claude';
+      const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'gehihi';
 
       setProvider(storedProvider);
       setOpenRouterKey(storedOrKey);
@@ -50,7 +51,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       setTestResult(null);
 
       // Auto scan if 9router endpoint
-      if (storedOrUrl.includes('20128')) {
+      if (storedOrUrl.includes('20128') || storedOrUrl.includes('localhost')) {
         handleScanModels(storedOrUrl, storedOrKey, false);
       }
     }
@@ -73,17 +74,25 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       });
 
       const data = await res.json();
+      if (data.detectedKey) {
+        setDetectedKey(data.detectedKey);
+        if (!key && !openRouterKey) {
+          setOpenRouterKey(data.detectedKey);
+          localStorage.setItem('tg_openrouter_key', data.detectedKey);
+        }
+      }
+
       if (data.models && data.models.length > 0) {
         setModels(data.models);
         setCombos(data.combos || []);
         setScanMessage({
-          text: `Đã lọc và tìm thấy ${data.count} models khả dụng từ 9Router!`,
+          text: `Đã lọc ${data.count} models từ 9Router! (Tự động nhận diện Key: ${data.detectedKey ? data.detectedKey.slice(0, 10) + '...' : 'OK'})`,
           type: 'success'
         });
 
-        // If no model selected, default to top combo
-        if (!openRouterModel && data.combos?.length > 0) {
-          setOpenRouterModel(data.combos[0].id);
+        // If no model selected, default to top combo gehihi
+        if (!openRouterModel) {
+          setOpenRouterModel('gehihi');
         }
       } else {
         setScanMessage({
@@ -102,8 +111,9 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   };
 
   // Live Ping / Test selected model
-  const handleTestSelectedModel = async () => {
-    if (!openRouterModel) return;
+  const handleTestSelectedModel = async (overrideModel) => {
+    const modelToTest = overrideModel || openRouterModel;
+    if (!modelToTest) return;
     setIsTestingModel(true);
     setTestResult(null);
 
@@ -113,8 +123,8 @@ export default function SettingsModal({ isOpen, onClose, t }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           baseUrl: openRouterBaseUrl,
-          apiKey: openRouterKey,
-          model: openRouterModel
+          apiKey: openRouterKey || detectedKey,
+          model: modelToTest
         })
       });
 
@@ -128,13 +138,14 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   };
 
   const handleSave = () => {
+    const finalKey = (openRouterKey || detectedKey).trim();
     localStorage.setItem('tg_provider', provider);
-    localStorage.setItem('tg_openrouter_key', openRouterKey.trim());
+    localStorage.setItem('tg_openrouter_key', finalKey);
     localStorage.setItem('tg_openrouter_url', openRouterBaseUrl.trim());
     localStorage.setItem('tg_openrouter_model', openRouterModel.trim());
 
     // Also sync standard keys
-    localStorage.setItem('tg_api_key', openRouterKey.trim());
+    localStorage.setItem('tg_api_key', finalKey);
     localStorage.setItem('tg_model', openRouterModel.trim());
 
     setSaved(true);
@@ -152,6 +163,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
     if (!matchesSearch) return false;
 
+    if (selectedCategory === 'verified') return m.isVerified || m.id === 'gehihi';
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'combo') return m.isCombo;
     return m.category === selectedCategory;
@@ -300,8 +312,13 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               {/* API Key Input */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider">
-                    API Key
+                  <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>API Key</span>
+                    {detectedKey && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        ✓ Tự động nhận diện Key 9Router
+                      </span>
+                    )}
                   </label>
                   {openRouterBaseUrl.includes('20128') && (
                     <span className="text-[11px] text-zinc-500">
@@ -313,7 +330,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   type="password"
                   value={openRouterKey}
                   onChange={(e) => setOpenRouterKey(e.target.value)}
-                  placeholder={openRouterBaseUrl.includes('20128') ? 'Dán API Key tạo từ 9Router vào đây' : 'sk-or-v1-...'}
+                  placeholder={detectedKey ? detectedKey : 'Dán API Key tạo từ 9Router vào đây'}
                   className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                 />
               </div>
@@ -350,12 +367,39 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                 <div className="flex items-center gap-1.5 mb-2.5">
                   <Sparkles className="w-4 h-4 text-indigo-600" />
                   <span className="text-xs font-bold text-zinc-900">
-                    Combo Đã Kích Hoạt Trong 9Router Của Bạn (Khuyên dùng):
+                    Combo Đã Kích Hoạt Trong 9Router (Khuyên dùng):
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {/* Combo 1: open */}
+                  {/* Combo 1: gehihi (TOP RECOMMENDED - 100% WORKING) */}
+                  <div
+                    onClick={() => {
+                      setOpenRouterModel('gehihi');
+                      handleTestSelectedModel('gehihi');
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'gehihi'
+                        ? 'bg-white border-emerald-600 ring-2 ring-emerald-600/30 shadow-xs'
+                        : 'bg-white/90 border-emerald-200 hover:border-emerald-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-zinc-900 font-mono">gehihi</span>
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                          SẴN SÀNG
+                        </span>
+                      </div>
+                      {openRouterModel === 'gehihi' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Gemini 3 & 2.5 Flash</p>
+                    <span className="inline-block mt-1 text-[9px] font-semibold text-emerald-700">
+                      ⚡ Hoạt động 100% (750ms)
+                    </span>
+                  </div>
+
+                  {/* Combo 2: open */}
                   <div
                     onClick={() => setOpenRouterModel('open')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
@@ -369,12 +413,12 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                       {openRouterModel === 'open' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
                     </div>
                     <p className="text-[10px] text-zinc-500 line-clamp-1">GPT-5.3 & Codex Pool</p>
-                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700">
-                      180+ models
+                    <span className="inline-block mt-1 text-[9px] text-amber-600 font-medium">
+                      ⚠️ Cần Cursor Agent
                     </span>
                   </div>
 
-                  {/* Combo 2: claude */}
+                  {/* Combo 3: claude */}
                   <div
                     onClick={() => setOpenRouterModel('claude')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
@@ -388,27 +432,8 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                       {openRouterModel === 'claude' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
                     </div>
                     <p className="text-[10px] text-zinc-500 line-clamp-1">Claude Fable & Sonnet</p>
-                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700">
-                      78+ models
-                    </span>
-                  </div>
-
-                  {/* Combo 3: gehihi */}
-                  <div
-                    onClick={() => setOpenRouterModel('gehihi')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      openRouterModel === 'gehihi'
-                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
-                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-zinc-900 font-mono">gehihi</span>
-                      {openRouterModel === 'gehihi' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                    </div>
-                    <p className="text-[10px] text-zinc-500 line-clamp-1">Gemini 3 & 2.5 Flash</p>
-                    <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700">
-                      144+ models
+                    <span className="inline-block mt-1 text-[9px] text-amber-600 font-medium">
+                      ⚠️ Cần Cursor Agent
                     </span>
                   </div>
                 </div>
@@ -426,7 +451,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                 {/* Test button */}
                 <button
                   type="button"
-                  onClick={handleTestSelectedModel}
+                  onClick={() => handleTestSelectedModel()}
                   disabled={isTestingModel || !openRouterModel}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-900 hover:bg-zinc-800 text-white transition-colors cursor-pointer"
                 >
@@ -437,31 +462,50 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
               {/* Test Result Message */}
               {testResult && (
-                <div
-                  className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
-                    testResult.success
-                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
-                      : 'bg-rose-50 text-rose-900 border border-rose-300'
-                  }`}
-                >
-                  {testResult.success ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold">Model "{testResult.model}" hoạt động hoàn hảo!</span>
-                        <span className="text-[11px] block text-emerald-700">
-                          Độ trễ: <strong>{testResult.latencyMs}ms</strong> • Phản hồi: "{testResult.reply}"
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold">Lỗi kết nối tới Model:</span>
-                        <p className="text-[11px] text-rose-700 mt-0.5">{testResult.error}</p>
-                      </div>
-                    </>
+                <div className="space-y-2">
+                  <div
+                    className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                      testResult.success
+                        ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
+                        : 'bg-rose-50 text-rose-900 border border-rose-300'
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold">Model "{testResult.model}" hoạt động hoàn hảo!</span>
+                          <span className="text-[11px] block text-emerald-700">
+                            Độ trễ: <strong>{testResult.latencyMs}ms</strong> • Phản hồi: "{testResult.reply}"
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <span className="font-bold">Lỗi kết nối tới Model:</span>
+                          <p className="text-[11px] text-rose-700 mt-0.5 break-all">{testResult.error}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Friendly suggestion tip when an upstream model has error */}
+                  {testResult.tip && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium leading-relaxed">{testResult.tip}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenRouterModel('gehihi');
+                          handleTestSelectedModel('gehihi');
+                        }}
+                        className="shrink-0 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer transition-colors shadow-2xs"
+                      >
+                        Chuyển sang "gehihi" ngay
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -488,11 +532,12 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
                 <div className="flex flex-wrap gap-1 bg-zinc-100 p-1 rounded-xl border border-zinc-200/60 text-xs">
                   {[
+                    { id: 'verified', label: '✅ Đã xác minh 100%' },
                     { id: 'all', label: 'Tất cả' },
                     { id: 'combo', label: '🌟 Combo' },
+                    { id: 'gemini', label: '⚡ Gemini' },
                     { id: 'openai', label: '🤖 OpenAI' },
                     { id: 'anthropic', label: '🧠 Claude' },
-                    { id: 'gemini', label: '⚡ Gemini' },
                     { id: 'open_source', label: '🚀 Open-Source' }
                   ].map((cat) => (
                     <button
@@ -540,6 +585,16 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                           <div className="flex items-center gap-2 truncate">
                             {m.isCombo && <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
                             <span className="font-mono truncate">{m.id}</span>
+                            {m.isVerified && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">
+                                ✓ Hoạt động
+                              </span>
+                            )}
+                            {m.id.startsWith('cu/') && (
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800">
+                                Cursor
+                              </span>
+                            )}
                             {m.owned_by && (
                               <span className="text-[9px] px-1 py-0.2 rounded bg-zinc-100 text-zinc-500">
                                 {m.owned_by}

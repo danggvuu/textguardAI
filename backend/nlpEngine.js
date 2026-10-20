@@ -4,6 +4,8 @@
  * for Vietnamese and English to bypass AI detectors.
  */
 
+import { resolveApiKey } from './keyHelper.js';
+
 // Vietnamese AI Clichés and natural human alternatives
 const VI_CLICHES = [
   {
@@ -337,26 +339,28 @@ TRANSFORMATION RULES:
   }
 
   if (provider === 'openrouter') {
-    const cleanBaseUrl = (config.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-    const url = `${cleanBaseUrl}/chat/completions`;
+    const cleanBaseUrl = (config.baseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
+    const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
+    const effectiveKey = resolveApiKey(apiKey, cleanBaseUrl);
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${effectiveKey}`,
         'HTTP-Referer': 'https://textguard.ai',
         'X-Title': 'TextGuard AI Humanizer'
       },
       body: JSON.stringify({
-        model: model || 'google/gemini-2.0-flash-001',
+        model: model || 'gehihi',
         messages: [{ role: 'user', content: prompt }],
-        temperature: strength === 'aggressive' ? 0.9 : 0.75
+        temperature: strength === 'aggressive' ? 0.9 : 0.75,
+        stream: false
       })
     });
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`OpenRouter API Error: ${response.status} - ${err}`);
+      throw new Error(`OpenRouter/9Router API Error: ${response.status} - ${err}`);
     }
 
     const data = await response.json();

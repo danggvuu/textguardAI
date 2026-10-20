@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
 import { PRESET_SAMPLES } from './presets.js';
+import { resolveApiKey, getAutoDetected9RouterKey } from './keyHelper.js';
 
 dotenv.config();
 
@@ -48,9 +49,10 @@ app.post('/api/models', async (req, res) => {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
 
+    const effectiveKey = resolveApiKey(apiKey, cleanUrl);
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey && apiKey.trim()) {
-      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    if (effectiveKey) {
+      headers['Authorization'] = `Bearer ${effectiveKey}`;
     }
 
     const controller = new AbortController();
@@ -66,7 +68,8 @@ app.post('/api/models', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       return res.status(response.status).json({
-        error: `Không thể lấy danh sách model (${response.status}): ${errText}`
+        error: `Không thể lấy danh sách model (${response.status}): ${errText}`,
+        detectedKey: getAutoDetected9RouterKey()
       });
     }
 
@@ -77,6 +80,18 @@ app.post('/api/models', async (req, res) => {
     const comboIds = ['open', 'claude', 'gehihi'];
     const combos = [];
     const regularModels = [];
+
+    // List of models tested & verified working 100% on this machine
+    const VERIFIED_MODELS = [
+      'gehihi',
+      'gemini/gemini-2.5-flash',
+      'gemini/gemini-3-flash-preview',
+      'gemini-2.5-flash',
+      'gemini-3-flash-preview',
+      'gemini/gemini-2.5-flash-lite',
+      'gemini/gemini-3.7-flash',
+      'gemini/gemini-3.8-flash'
+    ];
 
     rawList.forEach(item => {
       const id = item.id || item.name;
@@ -99,11 +114,14 @@ app.post('/api/models', async (req, res) => {
         category = 'open_source';
       }
 
+      const isVerified = VERIFIED_MODELS.includes(id);
+
       const formatted = {
         id,
         owned_by: item.owned_by || '',
         category,
         isCombo,
+        isVerified,
         context_length: item.context_length || item.capabilities?.contextWindow || null
       };
 
@@ -114,24 +132,30 @@ app.post('/api/models', async (req, res) => {
         if (!includeInternal) {
           if (id.includes('~') || id.includes(':batch') || id.includes('[1m]')) return;
           if (/embed|moderation|tts|whisper|dall-e|flux|sdxl|rerank|clip/i.test(id)) return;
+          if (id.startsWith('cl/google/lyria') || id.startsWith('gh/goldeneye')) return;
         }
         regularModels.push(formatted);
       }
     });
 
-    // Combos first, then regular models
+    // Combos first (gehihi top), then verified models, then regular models
+    combos.sort((a, b) => (b.id === 'gehihi' ? 1 : 0) - (a.id === 'gehihi' ? 1 : 0));
+    regularModels.sort((a, b) => (b.isVerified ? 1 : 0) - (a.isVerified ? 1 : 0));
+
     const sorted = [...combos, ...regularModels];
 
     return res.json({
       success: true,
       count: sorted.length,
       combos,
-      models: sorted
+      models: sorted,
+      detectedKey: getAutoDetected9RouterKey()
     });
   } catch (error) {
     console.error('Fetch models error:', error);
     return res.status(500).json({
-      error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`
+      error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`,
+      detectedKey: getAutoDetected9RouterKey()
     });
   }
 });
@@ -140,17 +164,18 @@ app.post('/api/models', async (req, res) => {
 app.post('/api/models/test', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'claude' } = req.body;
+    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'gehihi' } = req.body;
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const chatEndpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
 
+    const effectiveKey = resolveApiKey(apiKey, cleanUrl);
     const headers = { 'Content-Type': 'application/json' };
-    if (apiKey && apiKey.trim()) {
-      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    if (effectiveKey) {
+      headers['Authorization'] = `Bearer ${effectiveKey}`;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     const response = await fetch(chatEndpoint, {
       method: 'POST',
@@ -158,31 +183,62 @@ app.post('/api/models/test', async (req, res) => {
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: 'Say OK' }],
-        max_tokens: 5
+        max_tokens: 50,
+        stream: false
       }),
       signal: controller.signal
     });
     clearTimeout(timeoutId);
 
     const latencyMs = Date.now() - startTime;
+    const responseText = await response.text();
 
     if (!response.ok) {
-      const errText = await response.text();
+      let friendlyTip = '';
+      if (responseText.includes('Cursor AgentService') || responseText.includes('empty turn')) {
+        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent (cần IDE session). Khuyên bạn nên chuyển sang combo "gehihi" hoặc "gemini/gemini-2.5-flash" để chạy mượt 100%!';
+      } else if (responseText.includes('not licensed to use Copilot') || responseText.includes('Copilot')) {
+        friendlyTip = '💡 Tip: Tài khoản GitHub Copilot trên máy chưa kích hoạt license. Hãy chuyển sang "gehihi" hoặc các model Gemini!';
+      } else if (responseText.includes('Paid Model - Credits Required') || responseText.includes('402')) {
+        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "gehihi" hoàn toàn miễn phí!';
+      }
+
       return res.status(response.status).json({
         success: false,
         latencyMs,
-        error: `Model "${model}" trả về lỗi (${response.status}): ${errText}`
+        error: `Model "${model}" trả về lỗi (${response.status}): ${responseText}`,
+        tip: friendlyTip
       });
     }
 
-    const data = await response.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim() || 'OK';
+    // Try parsing JSON or SSE fallback
+    let reply = 'OK';
+    try {
+      const data = JSON.parse(responseText);
+      reply = data?.choices?.[0]?.message?.content?.trim() 
+        || data?.choices?.[0]?.delta?.content?.trim() 
+        || 'OK';
+    } catch {
+      if (responseText.includes('data:')) {
+        const lines = responseText.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+            try {
+              const chunk = JSON.parse(line.slice(6));
+              const piece = chunk?.choices?.[0]?.delta?.content || chunk?.choices?.[0]?.message?.content;
+              if (piece) reply += piece;
+            } catch {}
+          }
+        }
+      }
+    }
 
     return res.json({
       success: true,
       model,
       latencyMs,
-      reply
+      reply: reply || 'OK',
+      detectedKey: effectiveKey
     });
   } catch (error) {
     return res.status(500).json({
@@ -244,13 +300,16 @@ app.post('/api/humanize', async (req, res) => {
     let humanizedText = '';
     let engineUsed = 'local-nlp';
 
-    // 1. Try LLM if API Key is supplied
-    if (apiKey && apiKey.trim()) {
+    // 1. Resolve key (auto-detects local 9Router key if on localhost)
+    const effectiveKey = resolveApiKey(apiKey, baseUrl);
+
+    // Try LLM if effective API Key is available
+    if (effectiveKey && provider !== 'free') {
       try {
         humanizedText = await humanizeWithLLM(
           text,
           { strength, readability, purpose },
-          { apiKey: apiKey.trim(), provider, model, baseUrl }
+          { apiKey: effectiveKey, provider, model: model || 'gemini-2.5-flash', baseUrl }
         );
         engineUsed = provider;
       } catch (llmErr) {
