@@ -19,7 +19,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   const [provider, setProvider] = useState('free');
   const [openRouterKey, setOpenRouterKey] = useState('');
   const [openRouterBaseUrl, setOpenRouterBaseUrl] = useState('http://localhost:20128/v1');
-  const [openRouterModel, setOpenRouterModel] = useState('gehihi');
+  const [openRouterModel, setOpenRouterModel] = useState('kr/claude-sonnet-4.5');
   const [saved, setSaved] = useState(false);
   const [detectedKey, setDetectedKey] = useState('');
 
@@ -29,7 +29,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('verified'); // 'verified' | 'all' | 'combo' | 'gemini' | 'openai' | 'anthropic' | 'open_source'
+  const [selectedCategory, setSelectedCategory] = useState('verified'); // 'verified' | 'all' | 'anthropic' | 'gemini' | 'open_source' | 'openai' | 'combo'
   const [showInternal, setShowInternal] = useState(false);
 
   // Live model test ping
@@ -41,7 +41,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       const storedProvider = localStorage.getItem('tg_provider') || 'pro';
       const storedOrKey = localStorage.getItem('tg_openrouter_key') || '';
       const storedOrUrl = localStorage.getItem('tg_openrouter_url') || 'http://localhost:20128/v1';
-      const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'gehihi';
+      const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
 
       setProvider(storedProvider);
       setOpenRouterKey(storedOrKey);
@@ -362,78 +362,152 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                 )}
               </div>
 
-              {/* FEATURED: 9Router Combos (TOP PRIORITY) */}
+              {/* FEATURED: Verified 9Router Models (TOP RECOMMENDED) */}
               <div className="p-3.5 bg-gradient-to-br from-indigo-50/70 to-purple-50/50 rounded-xl border border-indigo-200/80">
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                  <span className="text-xs font-bold text-zinc-900">
-                    Combo Đã Kích Hoạt Trong 9Router (Khuyên dùng):
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span className="text-xs font-bold text-zinc-900">
+                      Top Model Mạnh Nhất (Đã kích hoạt trên 9Router của bạn):
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                    🟢 Đã kiểm chứng 100%
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {/* Combo 1: gehihi (TOP RECOMMENDED - 100% WORKING) */}
+                  {/* Model 1: Claude Sonnet 4.5 (Kiro) - SOTA */}
                   <div
                     onClick={() => {
-                      setOpenRouterModel('gehihi');
-                      handleTestSelectedModel('gehihi');
+                      setOpenRouterModel('kr/claude-sonnet-4.5');
+                      handleTestSelectedModel('kr/claude-sonnet-4.5');
                     }}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      openRouterModel === 'gehihi'
+                      openRouterModel === 'kr/claude-sonnet-4.5'
+                        ? 'bg-white border-purple-600 ring-2 ring-purple-600/30 shadow-xs'
+                        : 'bg-white/90 border-purple-200 hover:border-purple-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-xs text-zinc-900 font-mono">Claude Sonnet 4.5</span>
+                      </div>
+                      {openRouterModel === 'kr/claude-sonnet-4.5' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Kiro Provider (SOTA)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded">
+                      🧠 Phân tích & Viết đỉnh cao
+                    </span>
+                  </div>
+
+                  {/* Model 2: Claude Haiku 4.5 (Kiro) - Fast */}
+                  <div
+                    onClick={() => {
+                      setOpenRouterModel('kr/claude-haiku-4.5');
+                      handleTestSelectedModel('kr/claude-haiku-4.5');
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'kr/claude-haiku-4.5'
+                        ? 'bg-white border-purple-600 ring-2 ring-purple-600/30 shadow-xs'
+                        : 'bg-white/90 border-purple-200 hover:border-purple-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">Claude Haiku 4.5</span>
+                      {openRouterModel === 'kr/claude-haiku-4.5' && <Check className="w-3.5 h-3.5 text-purple-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Kiro Provider (Speed)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded">
+                      ⚡ Siêu nhanh & nhạy bén
+                    </span>
+                  </div>
+
+                  {/* Model 3: Llama 3.3 70B (Cloudflare) */}
+                  <div
+                    onClick={() => {
+                      setOpenRouterModel('cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+                      handleTestSelectedModel('cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel.includes('llama-3.3')
+                        ? 'bg-white border-blue-600 ring-2 ring-blue-600/30 shadow-xs'
+                        : 'bg-white/90 border-blue-200 hover:border-blue-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">Llama 3.3 70B</span>
+                      {openRouterModel.includes('llama-3.3') && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Cloudflare AI (FP8 Fast)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded">
+                      🦙 Open-Source 70B
+                    </span>
+                  </div>
+
+                  {/* Model 4: Qwen QwQ 32B (Cloudflare) */}
+                  <div
+                    onClick={() => {
+                      setOpenRouterModel('cf/@cf/qwen/qwq-32b');
+                      handleTestSelectedModel('cf/@cf/qwen/qwq-32b');
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel.includes('qwq-32b')
+                        ? 'bg-white border-amber-600 ring-2 ring-amber-600/30 shadow-xs'
+                        : 'bg-white/90 border-amber-200 hover:border-amber-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-xs text-zinc-900 font-mono">Qwen QwQ 32B</span>
+                      {openRouterModel.includes('qwq-32b') && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                    </div>
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Cloudflare AI (Reasoning)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded">
+                      🧠 Suy luận logic sâu
+                    </span>
+                  </div>
+
+                  {/* Model 5: Gemini 2.5 Flash */}
+                  <div
+                    onClick={() => {
+                      setOpenRouterModel('gemini-2.5-flash');
+                      handleTestSelectedModel('gemini-2.5-flash');
+                    }}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      openRouterModel === 'gemini-2.5-flash'
                         ? 'bg-white border-emerald-600 ring-2 ring-emerald-600/30 shadow-xs'
                         : 'bg-white/90 border-emerald-200 hover:border-emerald-400'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-zinc-900 font-mono">gehihi</span>
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                          SẴN SÀNG
-                        </span>
-                      </div>
-                      {openRouterModel === 'gehihi' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                      <span className="font-bold text-xs text-zinc-900 font-mono">Gemini 2.5 Flash</span>
+                      {openRouterModel === 'gemini-2.5-flash' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                     </div>
-                    <p className="text-[10px] text-zinc-600 line-clamp-1">Gemini 3 & 2.5 Flash</p>
-                    <span className="inline-block mt-1 text-[9px] font-semibold text-emerald-700">
-                      ⚡ Hoạt động 100% (750ms)
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Google Direct (~750ms)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
+                      ⚡ Tốc độ ánh sáng
                     </span>
                   </div>
 
-                  {/* Combo 2: open */}
+                  {/* Model 6: GPT-OSS 120B / Ollama */}
                   <div
-                    onClick={() => setOpenRouterModel('open')}
+                    onClick={() => {
+                      setOpenRouterModel('ollama/gpt-oss:120b');
+                      handleTestSelectedModel('ollama/gpt-oss:120b');
+                    }}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      openRouterModel === 'open'
-                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
-                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
+                      openRouterModel.includes('gpt-oss')
+                        ? 'bg-white border-zinc-800 ring-2 ring-zinc-800/30 shadow-xs'
+                        : 'bg-white/90 border-zinc-200 hover:border-zinc-400'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-zinc-900 font-mono">open</span>
-                      {openRouterModel === 'open' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                      <span className="font-bold text-xs text-zinc-900 font-mono">GPT-OSS 120B</span>
+                      {openRouterModel.includes('gpt-oss') && <Check className="w-3.5 h-3.5 text-zinc-800" />}
                     </div>
-                    <p className="text-[10px] text-zinc-500 line-clamp-1">GPT-5.3 & Codex Pool</p>
-                    <span className="inline-block mt-1 text-[9px] text-amber-600 font-medium">
-                      ⚠️ Cần Cursor Agent
-                    </span>
-                  </div>
-
-                  {/* Combo 3: claude */}
-                  <div
-                    onClick={() => setOpenRouterModel('claude')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      openRouterModel === 'claude'
-                        ? 'bg-white border-indigo-600 ring-2 ring-indigo-600/30 shadow-xs'
-                        : 'bg-white/80 border-zinc-200 hover:border-indigo-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-zinc-900 font-mono">claude</span>
-                      {openRouterModel === 'claude' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
-                    </div>
-                    <p className="text-[10px] text-zinc-500 line-clamp-1">Claude Fable & Sonnet</p>
-                    <span className="inline-block mt-1 text-[9px] text-amber-600 font-medium">
-                      ⚠️ Cần Cursor Agent
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Ollama Cloud / Local</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-zinc-700 bg-zinc-100 px-1.5 py-0.2 rounded">
+                      💻 Siêu mô hình 120B
                     </span>
                   </div>
                 </div>

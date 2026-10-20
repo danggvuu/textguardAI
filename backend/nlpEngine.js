@@ -4,7 +4,7 @@
  * for Vietnamese and English to bypass AI detectors.
  */
 
-import { resolveApiKey } from './keyHelper.js';
+import { resolveApiKey, resolve9RouterModel } from './keyHelper.js';
 
 // Vietnamese AI Clichés and natural human alternatives
 const VI_CLICHES = [
@@ -342,6 +342,7 @@ TRANSFORMATION RULES:
     const cleanBaseUrl = (config.baseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
     const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
     const effectiveKey = resolveApiKey(apiKey, cleanBaseUrl);
+    const effectiveModel = resolve9RouterModel(model || 'kr/claude-sonnet-4.5');
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -351,7 +352,7 @@ TRANSFORMATION RULES:
         'X-Title': 'TextGuard AI Humanizer'
       },
       body: JSON.stringify({
-        model: model || 'gehihi',
+        model: effectiveModel,
         messages: [{ role: 'user', content: prompt }],
         temperature: strength === 'aggressive' ? 0.9 : 0.75,
         stream: false

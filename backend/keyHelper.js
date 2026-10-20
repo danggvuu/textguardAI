@@ -37,3 +37,33 @@ export function resolveApiKey(providedKey, baseUrl = '') {
   }
   return '';
 }
+
+/**
+ * Smart Model Resolver for 9Router:
+ * Resolves friendly model names/aliases to their exact working provider prefixes in 9Router
+ */
+export function resolve9RouterModel(model) {
+  if (!model) return 'kr/claude-sonnet-4.5';
+  const clean = model.trim();
+
+  // If user calls combo "claude" or alias "claude-sonnet-4.5", route to Kiro provider which works 100%!
+  if (clean === 'claude' || clean === 'claude-sonnet-4.5') return 'kr/claude-sonnet-4.5';
+  if (clean === 'claude-haiku-4.5') return 'kr/claude-haiku-4.5';
+  if (clean === 'claude-sonnet-4.5-thinking') return 'kr/claude-sonnet-4.5-thinking';
+  if (clean === 'qwen3-coder-next') return 'kr/qwen3-coder-next';
+  if (clean === 'deepseek-3.2') return 'kr/deepseek-3.2';
+
+  // Cloudflare models
+  if (clean.startsWith('@cf/')) return `cf/${clean}`;
+  if (clean === 'llama-3.3' || clean === 'llama-3.3-70b') return 'cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+  if (clean === 'qwq-32b') return 'cf/@cf/qwen/qwq-32b';
+
+  // Ollama models
+  if (clean === 'gpt-oss:120b') return 'ollama/gpt-oss:120b';
+
+  // Poolside models
+  if (clean === 'poolside/laguna-s-2.1' || clean === 'laguna-s-2.1' || clean === 'laguna') return 'ps/poolside/laguna-s-2.1';
+  if (clean === 'poolside/laguna-xs-2.1' || clean === 'laguna-xs-2.1') return 'ps/poolside/laguna-xs-2.1';
+
+  return clean;
+}

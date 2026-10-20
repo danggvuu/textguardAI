@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
 import { PRESET_SAMPLES } from './presets.js';
-import { resolveApiKey, getAutoDetected9RouterKey } from './keyHelper.js';
+import { resolveApiKey, getAutoDetected9RouterKey, resolve9RouterModel } from './keyHelper.js';
 
 dotenv.config();
 
@@ -81,16 +81,25 @@ app.post('/api/models', async (req, res) => {
     const combos = [];
     const regularModels = [];
 
-    // List of models tested & verified working 100% on this machine
+    // List of models tested & verified working 100% on this machine across all providers
     const VERIFIED_MODELS = [
-      'gehihi',
-      'gemini/gemini-2.5-flash',
-      'gemini/gemini-3-flash-preview',
+      'kr/claude-sonnet-4.5',
+      'kr/claude-haiku-4.5',
+      'kr/claude-sonnet-4.5-thinking',
+      'kr/qwen3-coder-next',
+      'kr/deepseek-3.2',
+      'cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+      'cf/@cf/qwen/qwq-32b',
+      'cf/@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+      'cf/@cf/zai-org/glm-4.7-flash',
+      'ollama/gpt-oss:120b',
+      'ps/poolside/laguna-s-2.1',
       'gemini-2.5-flash',
       'gemini-3-flash-preview',
-      'gemini/gemini-2.5-flash-lite',
-      'gemini/gemini-3.7-flash',
-      'gemini/gemini-3.8-flash'
+      'gemini-3.6-flash',
+      'gemini-3.8-flash',
+      'gemma-4-31b-it',
+      'gehihi'
     ];
 
     rawList.forEach(item => {
@@ -164,11 +173,13 @@ app.post('/api/models', async (req, res) => {
 app.post('/api/models/test', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'gehihi' } = req.body;
+    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'kr/claude-sonnet-4.5' } = req.body;
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const chatEndpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
 
     const effectiveKey = resolveApiKey(apiKey, cleanUrl);
+    const effectiveModel = resolve9RouterModel(model);
+
     const headers = { 'Content-Type': 'application/json' };
     if (effectiveKey) {
       headers['Authorization'] = `Bearer ${effectiveKey}`;
@@ -181,7 +192,7 @@ app.post('/api/models/test', async (req, res) => {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model,
+        model: effectiveModel,
         messages: [{ role: 'user', content: 'Say OK' }],
         max_tokens: 50,
         stream: false
@@ -196,17 +207,17 @@ app.post('/api/models/test', async (req, res) => {
     if (!response.ok) {
       let friendlyTip = '';
       if (responseText.includes('Cursor AgentService') || responseText.includes('empty turn')) {
-        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent (cần IDE session). Khuyên bạn nên chuyển sang combo "gehihi" hoặc "gemini/gemini-2.5-flash" để chạy mượt 100%!';
+        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent. Bạn có thể chọn "kr/claude-sonnet-4.5" hoặc "gemini-2.5-flash" để chạy mượt 100%!';
       } else if (responseText.includes('not licensed to use Copilot') || responseText.includes('Copilot')) {
-        friendlyTip = '💡 Tip: Tài khoản GitHub Copilot trên máy chưa kích hoạt license. Hãy chuyển sang "gehihi" hoặc các model Gemini!';
+        friendlyTip = '💡 Tip: Tài khoản GitHub Copilot trên máy chưa kích hoạt license. Hãy chọn "kr/claude-sonnet-4.5" (Kiro) hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast"!';
       } else if (responseText.includes('Paid Model - Credits Required') || responseText.includes('402')) {
-        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "gehihi" hoàn toàn miễn phí!';
+        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "kr/claude-sonnet-4.5" hoặc "gemini-2.5-flash"!';
       }
 
       return res.status(response.status).json({
         success: false,
         latencyMs,
-        error: `Model "${model}" trả về lỗi (${response.status}): ${responseText}`,
+        error: `Model "${effectiveModel}" trả về lỗi (${response.status}): ${responseText}`,
         tip: friendlyTip
       });
     }
@@ -217,6 +228,7 @@ app.post('/api/models/test', async (req, res) => {
       const data = JSON.parse(responseText);
       reply = data?.choices?.[0]?.message?.content?.trim() 
         || data?.choices?.[0]?.delta?.content?.trim() 
+        || data?.choices?.[0]?.message?.reasoning_content?.trim()
         || 'OK';
     } catch {
       if (responseText.includes('data:')) {
@@ -235,7 +247,7 @@ app.post('/api/models/test', async (req, res) => {
 
     return res.json({
       success: true,
-      model,
+      model: effectiveModel,
       latencyMs,
       reply: reply || 'OK',
       detectedKey: effectiveKey

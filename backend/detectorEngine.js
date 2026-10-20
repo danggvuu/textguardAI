@@ -10,7 +10,7 @@
  */
 
 import { detectLanguage, splitSentences } from './nlpEngine.js';
-import { resolveApiKey } from './keyHelper.js';
+import { resolveApiKey, resolve9RouterModel } from './keyHelper.js';
 
 // Top 50+ SOTA English LLM bias signatures (from HC3, RAID, and empirical GPT-4/Claude/Gemini research)
 const EN_HIGH_CONFIDENCE_TRIGGERS = [
@@ -472,6 +472,7 @@ export async function detectOpenRouterPro(text, config = {}) {
   const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
 
   const effectiveKey = resolveApiKey(openRouterKey, cleanBaseUrl);
+  const effectiveModel = resolve9RouterModel(openRouterModel);
 
   if (!effectiveKey) {
     throw new Error('Vui lòng nhập API Key trong Cài đặt (hoặc bật 9Router) để dùng chế độ Pro');
@@ -528,7 +529,7 @@ TEXT TO ANALYZE:
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: openRouterModel,
+      model: effectiveModel,
       messages: [
         {
           role: 'system',
