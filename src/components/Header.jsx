@@ -9,6 +9,7 @@ export default function Header({
   onOpenSettings,
   onOpenPresets,
   currentEngine = 'free',
+  activeModel = 'claude',
   t
 }) {
   return (
@@ -111,12 +112,12 @@ export default function Header({
               {currentEngine === 'pro' ? (
                 <>
                   <Zap className="w-3 h-3 fill-purple-600 text-purple-600" />
-                  <span>PRO (OpenRouter)</span>
+                  <span className="max-w-[130px] truncate">PRO: {activeModel || '9Router'}</span>
                 </>
               ) : (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Free Model (HC3)</span>
+                  <span>Free (HC3)</span>
                 </>
               )}
             </button>

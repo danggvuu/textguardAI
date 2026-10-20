@@ -397,62 +397,21 @@ export async function detectOpenRouterPro(text, config = {}) {
     openRouterModel = 'google/gemini-2.0-flash-001'
   } = config;
 
-  if (!openRouterKey || !openRouterKey.trim()) {
-    throw new Error('Vui lòng nhập OpenRouter API Key ("9router") trong Cài đặt để dùng chế độ Pro');
+  const cleanBaseUrl = (openRouterBaseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
+  const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
+
+  const effectiveKey = (openRouterKey && openRouterKey.trim()) 
+    ? openRouterKey.trim() 
+    : (cleanBaseUrl.includes('localhost') || cleanBaseUrl.includes('127.0.0.1') ? 'sk-9router-local' : '');
+
+  if (!effectiveKey) {
+    throw new Error('Vui lòng nhập API Key trong Cài đặt để dùng chế độ Pro');
   }
-
-  const prompt = `You are the world's foremost AI Text Forensic Expert and Computational Linguist specializing in the Stanford HC3, TuringBench, and RAID benchmarks.
-Your objective is to conduct an uncompromising, deep forensic analysis of the following text to detect if it was generated, enhanced, or assisted by an AI LLM (ChatGPT, GPT-4, Claude 3.5, Gemini, LLaMA), even when adversarial prompt techniques were employed (e.g. asking the AI to sound like a casual human, use everyday slang, tell a personal story, or avoid formal transition words).
-
-TEXT TO ANALYZE:
-"""${text}"""
-
-EVALUATION FRAMEWORK (Stanford HC3 & RAID Benchmark criteria):
-1. Lexical Signatures: Detect overrepresented LLM tokens ("delve", "tapestry", "beacon", "foster", "plays a crucial role", "multifaceted", "interplay", "navigating the complexities").
-2. Adversarial Persona De-anonymization: Detect "pseudo-casual" writing where conversational slang (e.g. "honestly", "grab a drink", "t", "m") is artificially paired with perfect textbook syntax and a classic 3-act moral epiphany at the end ("In the grand scheme of things...", "Nghĩ lại thì đôi khi...").
-3. Syntactic Homogeneity: Check if sentence lengths unnaturally cluster around 18-25 words with low burstiness.
-4. Sentence-by-sentence Attribution: Score each sentence 0-100% AI and identify specific forensic markers.
-
-Return strictly valid JSON matching this schema with NO markdown codeblocks or commentary:
-{
-  "aiScore": <overall AI score 0-100>,
-  "humanScore": <overall human score 0-100>,
-  "burstiness": <burstiness score 0-100>,
-  "perplexity": <perplexity score 0-100>,
-  "verdictSummary": "<Clear 1-2 sentence forensic verdict in English or Vietnamese>",
-  "personaDetected": {
-    "isAdversarialMimic": <boolean>,
-    "style": "<e.g., Adversarial Casual Storytelling / Academic Paper / Corporate>",
-    "epiphanyFound": <boolean>
-  },
-  "benchmarks": {
-    "hc3_confidence": <percentage 88-99>,
-    "raid_robustness": <percentage 90-99>,
-    "m4_generalization": <percentage 90-99>,
-    "false_positive_risk": <percentage 1-5>,
-    "turnitin": <predicted score 0-100>,
-    "gptzero": <predicted score 0-100>,
-    "copyleaks": <predicted score 0-100>,
-    "zerogpt": <predicted score 0-100>,
-    "crossplag": <predicted score 0-100>
-  },
-  "sentences": [
-    {
-      "sentence": "<exact sentence>",
-      "score": <0-100>,
-      "status": "<'ai' | 'mixed' | 'human'>",
-      "reasons": ["<precise forensic reason>"]
-    }
-  ]
-}`;
-
-  const cleanBaseUrl = openRouterBaseUrl.replace(/\/+$/, '');
-  const url = `${cleanBaseUrl}/chat/completions`;
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${openRouterKey.trim()}`,
+      'Authorization': `Bearer ${effectiveKey}`,
       'HTTP-Referer': 'https://textguard.ai',
       'X-Title': 'TextGuard AI Forensic Inspector',
       'Content-Type': 'application/json'

@@ -41,6 +41,57 @@ app.get('/api/presets', (req, res) => {
   res.json({ presets: PRESET_SAMPLES });
 });
 
+// Scan / Fetch Models from 9Router or OpenRouter endpoint
+app.post('/api/models', async (req, res) => {
+  try {
+    const { baseUrl = 'http://localhost:20128/v1', apiKey = '' } = req.body;
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey && apiKey.trim()) {
+      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(modelsEndpoint, {
+      method: 'GET',
+      headers,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({
+        error: `Không thể lấy danh sách model (${response.status}): ${errText}`
+      });
+    }
+
+    const data = await response.json();
+    const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+
+    const models = rawList.map(item => ({
+      id: item.id || item.name,
+      owned_by: item.owned_by || '',
+      context_length: item.context_length || item.capabilities?.contextWindow || null
+    })).filter(m => Boolean(m.id));
+
+    return res.json({
+      success: true,
+      count: models.length,
+      models
+    });
+  } catch (error) {
+    console.error('Fetch models error:', error);
+    return res.status(500).json({
+      error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`
+    });
+  }
+});
+
 // AI Detection Endpoint
 app.post('/api/detect', async (req, res) => {
   try {

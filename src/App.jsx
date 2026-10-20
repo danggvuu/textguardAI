@@ -26,6 +26,7 @@ export default function App() {
   const [detectorData, setDetectorData] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectorMode, setDetectorMode] = useState('free'); // 'free' | 'pro'
+  const [activeModel, setActiveModel] = useState('claude');
 
   // Processing state & stage text
   const [isProcessing, setIsProcessing] = useState(false);
@@ -55,7 +56,9 @@ export default function App() {
     if (storedEngine === 'pro') {
       setDetectorMode('pro');
     }
-  }, []);
+    const storedModel = localStorage.getItem('tg_openrouter_model') || 'claude';
+    setActiveModel(storedModel);
+  }, [isSettingsOpen]);
 
   // Handle Humanize
   const handleHumanize = async (options) => {
@@ -204,6 +207,7 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenPresets={() => setIsPresetsOpen(true)}
           currentEngine={detectorMode}
+          activeModel={activeModel}
           t={t}
         />
 
