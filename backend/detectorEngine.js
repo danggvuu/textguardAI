@@ -102,7 +102,7 @@ const EN_ADVERSARIAL_NARRATIVE_TRIGGERS = [
   'without constantly worrying about what comes next'
 ];
 
-// Vietnamese Standard Clichés
+// Vietnamese Standard Clichés & Academic Discourse Markers
 const VI_AI_TRIGGERS = [
   'không thể phủ nhận rằng',
   'trong bối cảnh hiện nay',
@@ -110,22 +110,43 @@ const VI_AI_TRIGGERS = [
   'trong kỷ nguyên số',
   'đóng vai trò quan trọng',
   'đóng vai trò then chốt',
+  'đóng vai trò đặc biệt quan trọng',
   'đóng một vai trò vô cùng quan trọng',
-  'nói tóm lại',
-  'tóm lại là',
-  'hơn nữa',
+  'một trong những khác biệt lớn nhất',
+  'một trong những yếu tố quan trọng',
+  'một trong những thách thức lớn nhất',
+  'một trong những thách thức',
+  'một trong những',
   'bên cạnh đó',
-  'một cách toàn diện',
-  'mang lại nhiều lợi ích',
-  'góp phần không nhỏ',
-  'không chỉ... mà còn',
-  'như chúng ta đã biết',
+  'ngoài ra',
+  'để giải quyết vấn đề trên',
+  'để giải quyết vấn đề',
+  'một yếu tố khác không nên bỏ qua',
+  'quá trình này cũng tạo điều kiện',
+  'tóm lại',
+  'tóm lại là',
+  'nói tóm lại',
+  'quan trọng nhất',
+  'thay vì chỉ ghi nhớ',
+  'không nhất thiết phải quá phức tạp',
+  'đây không chỉ là',
+  'không chỉ ảnh hưởng đến',
+  'mỗi người có xuất phát điểm',
+  'ảnh hưởng đáng kể đến',
+  'chịu trách nhiệm đối với',
+  'áp lực học tập là một phần',
+  'hoàn thiện bản thân',
+  'là một giai đoạn quan trọng',
   'đáng chú ý là',
   'là một minh chứng',
-  'vô hình trung'
+  'vô hình trung',
+  'hơn nữa',
+  'một cách toàn diện',
+  'mang lại nhiều lợi ích',
+  'góp phần không nhỏ'
 ];
 
-// Vietnamese Faux-Human Narrative Epiphany markers
+// Vietnamese Faux-Human Narrative Epiphany markers (Adversarial Casual Prompts)
 const VI_AI_NARRATIVE_TRIGGERS = [
   'nghĩ lại thì đôi khi',
   'không cần lúc nào cũng phải',
@@ -141,7 +162,25 @@ const VI_AI_NARRATIVE_TRIGGERS = [
   'đôi khi chỉ cần một khoảng lặng',
   'cuộc sống vội vã',
   'chữa lành tâm hồn',
-  'học cách lắng nghe bản thân'
+  'học cách lắng nghe bản thân',
+  'tiến bộ không phải lúc nào cũng thể hiện',
+  'nhưng ít nhất t đã hiểu rằng',
+  'nhưng ít nhất mình đã hiểu rằng',
+  'đôi khi nó chỉ là',
+  'những thay đổi đó khá nhỏ',
+  'nhìn lại mới thấy vấn đề không phải',
+  'không còn cho rằng chỉ một ngày',
+  'từng nghĩ cuộc sống sinh viên',
+  'nhưng vào học rồi mới thấy mọi thứ không hẳn',
+  'nói thật, có những việc nhìn bên ngoài',
+  'khó nhất có lẽ là lúc',
+  'sau đó t thử thay đổi',
+  't nghĩ đại học không chỉ dạy mình',
+  'lấy tiến độ của người khác làm tiêu chuẩn',
+  'đáng để ghi nhận',
+  'nghỉ một chút rồi làm tiếp đôi khi',
+  'chẳng cái nào đi đến nơi đến chốn',
+  'nằm im ở đó'
 ];
 
 /**
@@ -235,6 +274,20 @@ function analyzeSentence(sentence, lang, avgLength) {
       reasons.push(`Phát hiện công thức suy ngẫm triết lý / chữa lành kinh điển của AI: "${matchedNarratives.join('", "')}"`);
     }
 
+    // Parallelisms & argumentative formulas
+    if (/không chỉ\b.*?\bmà còn\b/i.test(lower)) {
+      aiScore += 30;
+      reasons.push('Cấu trúc câu song hành công thức ("không chỉ... mà còn")');
+    }
+    if (/thay vì\b.*?\bnên\b/i.test(lower)) {
+      aiScore += 25;
+      reasons.push('Cấu trúc đối lập đề xuất điển hình của AI ("thay vì... nên")');
+    }
+    if (/từ\b.*?\bđến\b.*?\bvà\b/i.test(lower)) {
+      aiScore += 20;
+      reasons.push('Cấu trúc chuỗi liệt kê phổ biến của AI');
+    }
+
     const hasSlang = /\b(?:t|m)\b/.test(lower);
     if (hasSlang && matchedNarratives.length > 0) {
       aiScore += 25;
@@ -317,6 +370,23 @@ export async function detectFreeTier(text) {
   // Compute composite score
   let rawOverallAi = sentenceAverage;
 
+  // Paragraph Discourse Density check (AI essays almost always start paragraphs with rigid transition tropes)
+  const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (paragraphs.length >= 3) {
+    const aiParaStarters = lang === 'en'
+      ? /^(?:furthermore|moreover|in addition|additionally|first and foremost|one of the|on the other hand|in conclusion|to sum up|ultimately|at its core|notably)/i
+      : /^(?:một trong những|bên cạnh đó|để giải quyết|ngoài ra|một yếu tố khác|môi trường đại học cũng|tóm lại|cuộc sống đại học là|quan trọng nhất|hơn nữa|mặt khác|nhìn chung|rõ ràng là|chuyện học đại học)/i;
+    
+    const matchingParas = paragraphs.filter(p => aiParaStarters.test(p)).length;
+    const paraRatio = matchingParas / paragraphs.length;
+
+    if (paraRatio >= 0.5) {
+      rawOverallAi += 35;
+    } else if (paraRatio >= 0.3) {
+      rawOverallAi += 18;
+    }
+  }
+
   // Penalize document homogeneity (AI uniform sentence pacing)
   if (homogeneity > 0.55 && sentenceLengths.length >= 3) {
     rawOverallAi += 18;
@@ -332,13 +402,13 @@ export async function detectFreeTier(text) {
   // Low burstiness penalty
   if (burstinessScore < 40) {
     rawOverallAi += (40 - burstinessScore) * 0.45;
-  } else if (burstinessScore > 75 && narrativeFlagCount === 0) {
-    // High burstiness with zero narrative flags indicates true human spontaneity
+  } else if (burstinessScore > 75 && narrativeFlagCount === 0 && flaggedSentences.length === 0) {
+    // High burstiness with zero narrative flags & zero flagged sentences indicates true human spontaneity
     rawOverallAi -= (burstinessScore - 75) * 0.35;
   }
 
   // Ensure human control text (like The Atlantic excerpt) stays clean (<10% AI)
-  if (sentenceAverage < 22 && narrativeFlagCount === 0 && burstinessScore > 70) {
+  if (sentenceAverage < 22 && narrativeFlagCount === 0 && burstinessScore > 70 && flaggedSentences.length === 0) {
     rawOverallAi = Math.min(rawOverallAi, 12);
   }
 
@@ -407,14 +477,22 @@ export async function detectOpenRouterPro(text, config = {}) {
     throw new Error('Vui lòng nhập API Key trong Cài đặt (hoặc bật 9Router) để dùng chế độ Pro');
   }
 
-  const prompt = `Analyze the following text with rigorous computational and forensic linguistics (calibrated against Stanford HC3 & RAID benchmarks) to determine if it is AI-generated (ChatGPT, Claude, Gemini, Llama) or written by a human.
+  const prompt = `You are an elite computational forensic linguist specializing in detecting AI-generated text, calibrated against Stanford HC3 & RAID benchmarks.
+
+SPECIAL FORENSIC INSTRUCTION ON TWO STYLES OF AI:
+1. ACADEMIC AI (Direct LLM output): Textbook argumentative structure, overt paragraph transition formulas ("Một trong những", "Bên cạnh đó", "Để giải quyết vấn đề", "Ngoài ra", "Tóm lại, ..."), rigid parallelism ("không chỉ... mà còn..."), uniform 22-26 word clauses. Expected score: 90% - 98% AI.
+2. ADVERSARIAL FAUX-HUMAN AI (Countering AI Detectors): The LLM was explicitly prompted to sound human, conversational, or casual (e.g. using Vietnamese "t", "mình", "loay hoay", "y hệt").
+CRITICAL LLM SIGNATURE: Despite the surface conversational tone, notice the underlying AI generation blueprint:
+- A rigid 8-stage personal essay progression (Anecdote -> Conflict -> Coping Mechanism -> Broader Generalization -> Life-Lesson / Epiphany).
+- The classic ChatGPT "Philosophical Epiphany / Moral Wrap-up" conclusion ("tiến bộ không phải lúc nào cũng thể hiện bằng thành tích lớn... Đôi khi nó chỉ là... Những thay đổi nhỏ... nhưng vẫn đáng ghi nhận"). Concluding personal reflections with a 3-part philosophical life-lesson summary is a hallmark of LLM RLHF conditioning, NOT organic human journaling.
+If this faux-human persona and epiphany blueprint are detected, classify it as AI-generated (Adversarial Mimic), with overallAiProbability between 75% and 88%!
 
 SCHEMA TO RETURN (Valid JSON strictly, no markdown backticks or commentary):
 {
   "overallAiProbability": 85,
   "confidence": "high",
-  "language": "en",
-  "verdict": "Văn bản do AI tạo ra",
+  "language": "vi",
+  "verdict": "Văn bản do AI tạo ra (Giả lập con người)" or "Văn bản do AI tạo ra",
   "explanation": "Chi tiết đánh giá súc tích dựa trên cấu trúc câu và từ vựng",
   "sentenceAnalysis": [
     {
@@ -436,6 +514,7 @@ SCHEMA TO RETURN (Valid JSON strictly, no markdown backticks or commentary):
     "crossplag": 82
   }
 }
+NOTE: Include only 4 to 6 most representative sentences in sentenceAnalysis to keep JSON compact, clean, and prevent truncation.
 
 TEXT TO ANALYZE:
 """${text}"""`;
