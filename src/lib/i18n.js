@@ -1,17 +1,17 @@
 export const translations = {
   vi: {
-    topAnnouncement: "+20,000 người dùng đang sử dụng Công cụ biến đổi văn bản thành tự nhiên ngay bây giờ",
-    rating: "4.8 Xuất sắc / 1,420 đánh giá",
+    topAnnouncement: "Công cụ biến đổi văn bản",
+    rating: "",
     navHumanizer: "Trình nhân bản hóa",
     navDetector: "Công cụ phát hiện AI",
     navDiff: "So sánh thay đổi (Diff)",
     navPresets: "Kho mẫu thử",
     navSettings: "Cài đặt API",
-    
+
     heroTitle: "Trình nhân bản hóa văn bản AI",
     heroHighlight: "Tự nhiên như người viết",
     heroSubtitle: "Chuyển đổi văn bản do ChatGPT, Claude, Gemini tạo ra thành nội dung tự nhiên, giàu cảm xúc, vượt qua Turnitin, GPTZero & ZeroGPT trong chớp mắt.",
-    
+
     strengthLabel: "Mức độ nhân bản",
     strengthLight: "Nhẹ nhàng",
     strengthLightDesc: "Giữ cấu trúc ban đầu, tinh chỉnh ngữ nghĩa và bỏ từ robot",
@@ -19,13 +19,13 @@ export const translations = {
     strengthBalancedDesc: "Tối ưu hóa độ tự nhiên, độ biến thiên và nhịp điệu câu",
     strengthAggressive: "Mạnh mẽ / Tối đa",
     strengthAggressiveDesc: "Tái cấu trúc câu chuyên sâu, vượt qua mọi AI detector khắt khe",
-    
+
     readabilityLabel: "Trình độ đọc",
     readabilityHighSchool: "Trung học / Phổ thông",
     readabilityCollege: "Đại học / Chuyên nghiệp",
     readabilityJournalist: "Báo chí / Truyền thông",
     readabilityDoctorate: "Tiến sĩ / Học thuật cao cấp",
-    
+
     purposeLabel: "Mục đích",
     purposeGeneral: "Tổng quát / Blog",
     purposeEssay: "Bài luận học thuật",
@@ -33,10 +33,10 @@ export const translations = {
     purposeStory: "Kể chuyện / Sáng tạo",
     purposeBusiness: "Email & Báo cáo",
     purposeLegal: "Hành chính & Pháp lý",
-    
+
     inputPlaceholder: "Dán văn bản do AI tạo ra vào đây hoặc tải tệp lên (.txt, .docx, .md)...",
     outputPlaceholder: "Văn bản tự nhiên hóa sẽ xuất hiện tại đây sau khi bạn nhấn nút bên dưới...",
-    
+
     btnPaste: "Dán văn bản",
     btnClear: "Xóa",
     btnUpload: "Tải tệp lên",
@@ -48,14 +48,14 @@ export const translations = {
     btnDownload: "Tải xuống",
     btnCheckAI: "Quét kiểm tra AI",
     btnViewDiff: "Xem khác biệt",
-    
+
     words: "từ",
     chars: "ký tự",
     readingTime: "phút đọc",
     humanScore: "Điểm người viết",
     aiScore: "Điểm AI",
     guaranteed: "Bảo đảm vượt qua các bộ kiểm tra",
-    
+
     stages: [
       "Đang quét phân tích mẫu câu văn bản...",
       "Khớp trình độ đọc: {readability}...",
@@ -75,12 +75,12 @@ export const translations = {
     legendAi: "Khả năng cao do AI (>65%)",
     legendMixed: "Trộn lẫn AI & Người (35% - 65%)",
     legendHuman: "Tự nhiên như người viết (<35%)",
-    
+
     diffTitle: "So sánh chi tiết thay đổi",
     diffSubtitle: "Xem chính xác những từ ngữ và cấu trúc câu AI đã được tinh chỉnh thành câu văn người viết.",
     diffLegendRemoved: "Từ ngữ khuôn mẫu AI bị loại bỏ",
     diffLegendAdded: "Văn phong tự nhiên mới được bổ sung",
-    
+
     settingsTitle: "Cấu hình AI & Engine",
     settingsEngine: "Engine xử lý",
     settingsLocal: "Engine NLP nội bộ thông minh (Mặc định - Miễn phí 100%)",
@@ -99,11 +99,11 @@ export const translations = {
     navDiff: "Diff Comparison",
     navPresets: "Sample Presets",
     navSettings: "API Settings",
-    
+
     heroTitle: "AI Text Humanizer & Detector",
     heroHighlight: "Make AI Text Truly Human",
     heroSubtitle: "Transform ChatGPT, Claude, and Gemini text into fluent, human-like writing that naturally bypasses Turnitin, GPTZero, and ZeroGPT.",
-    
+
     strengthLabel: "Humanization Strength",
     strengthLight: "Light",
     strengthLightDesc: "Keep original structure, refine nuance and strip AI clichés",
@@ -111,13 +111,13 @@ export const translations = {
     strengthBalancedDesc: "Optimal balance of readability, natural cadence and burstiness",
     strengthAggressive: "Aggressive / Max",
     strengthAggressiveDesc: "Deep syntactic rewrite to bypass the strictest AI detectors",
-    
+
     readabilityLabel: "Readability Level",
     readabilityHighSchool: "High School",
     readabilityCollege: "College / Professional",
     readabilityJournalist: "Journalist / Media",
     readabilityDoctorate: "Doctorate / Academic",
-    
+
     purposeLabel: "Purpose",
     purposeGeneral: "General / Blog",
     purposeEssay: "Academic Essay",
@@ -125,10 +125,10 @@ export const translations = {
     purposeStory: "Creative Storytelling",
     purposeBusiness: "Business & Emails",
     purposeLegal: "Legal & Administrative",
-    
+
     inputPlaceholder: "Paste your AI-generated text here or upload a file (.txt, .docx, .md)...",
     outputPlaceholder: "Your humanized text will appear here once you hit the button below...",
-    
+
     btnPaste: "Paste Text",
     btnClear: "Clear",
     btnUpload: "Upload File",
@@ -140,14 +140,14 @@ export const translations = {
     btnDownload: "Download",
     btnCheckAI: "Scan for AI",
     btnViewDiff: "View Diff",
-    
+
     words: "words",
     chars: "characters",
     readingTime: "min read",
     humanScore: "Human Score",
     aiScore: "AI Score",
     guaranteed: "Guaranteed to pass major detectors",
-    
+
     stages: [
       "Scanning text for AI patterns...",
       "Matching readability: {readability}...",
@@ -167,12 +167,12 @@ export const translations = {
     legendAi: "High AI Probability (>65%)",
     legendMixed: "Mixed AI & Human (35% - 65%)",
     legendHuman: "Human Written (<35%)",
-    
+
     diffTitle: "Detailed Change Comparison",
     diffSubtitle: "See exactly which robotic phrases were modified into natural human expressions.",
     diffLegendRemoved: "AI cliché / pattern removed",
     diffLegendAdded: "Natural human phrasing added",
-    
+
     settingsTitle: "Engine & API Configuration",
     settingsEngine: "Processing Engine",
     settingsLocal: "Smart Built-in NLP Engine (Default - 100% Free)",
