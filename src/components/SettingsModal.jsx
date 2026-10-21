@@ -38,22 +38,35 @@ export default function SettingsModal({ isOpen, onClose, t }) {
 
   useEffect(() => {
     if (isOpen) {
+      const isCloud = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+      const defaultUrl = isCloud
+        ? 'https://medical-privileges-fairfield-lit.trycloudflare.com/v1'
+        : 'http://localhost:20128/v1';
+      const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
+
       const storedProvider = localStorage.getItem('tg_provider') || 'pro';
-      const storedOrKey = localStorage.getItem('tg_openrouter_key') || '';
-      const storedOrUrl = localStorage.getItem('tg_openrouter_url') || 'http://localhost:20128/v1';
+      let storedOrKey = localStorage.getItem('tg_openrouter_key') || defaultKey;
+      let storedOrUrl = localStorage.getItem('tg_openrouter_url') || defaultUrl;
       const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
+
+      // On Vercel cloud, if URL was set to unreachable localhost, auto-switch to 9Router Cloudflare Tunnel
+      if (isCloud && (storedOrUrl.includes('localhost') || storedOrUrl.includes('127.0.0.1') || !storedOrKey)) {
+        storedOrUrl = defaultUrl;
+        storedOrKey = defaultKey;
+        localStorage.setItem('tg_openrouter_url', defaultUrl);
+        localStorage.setItem('tg_openrouter_key', defaultKey);
+      }
 
       setProvider(storedProvider);
       setOpenRouterKey(storedOrKey);
       setOpenRouterBaseUrl(storedOrUrl);
       setOpenRouterModel(storedOrModel);
+      setDetectedKey(defaultKey);
       setSaved(false);
       setTestResult(null);
 
-      // Auto scan if 9router endpoint
-      if (storedOrUrl.includes('20128') || storedOrUrl.includes('localhost')) {
-        handleScanModels(storedOrUrl, storedOrKey, false);
-      }
+      // Auto scan models from endpoint
+      handleScanModels(storedOrUrl, storedOrKey, false);
     }
   }, [isOpen]);
 
@@ -262,29 +275,28 @@ export default function SettingsModal({ isOpen, onClose, t }) {
           {/* Configuration Panel (When Pro selected) */}
           {provider === 'pro' && (
             <div className="space-y-4 p-4.5 bg-zinc-50/70 rounded-2xl border border-zinc-200 animate-in fade-in duration-200">
-              {/* Cloud vs Local Warning Banner */}
-              {typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
-                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold">⚠️ Bạn đang mở trên Vercel Cloud ({window.location.hostname})</p>
-                    <p className="mt-1 text-amber-800 leading-relaxed text-[11px]">
-                      Server đám mây của Vercel (đặt tại Mỹ) không thể kết nối tới <strong>9Router trên máy tính cá nhân của bạn (localhost:20128)</strong>. 
-                      Để kết nối trực tiếp với 9Router và các model Claude/Llama/Ollama trên máy, vui lòng mở trang web nội bộ tại:{' '}
-                      <a href="http://localhost:3001" target="_blank" rel="noreferrer" className="text-indigo-700 font-extrabold underline">
-                        http://localhost:3001
-                      </a>.
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Endpoint Preset Selector */}
               <div>
                 <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
                   Địa chỉ Proxy (Endpoint)
                 </label>
                 <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = 'https://medical-privileges-fairfield-lit.trycloudflare.com/v1';
+                      setOpenRouterBaseUrl(url);
+                      handleScanModels(url);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      openRouterBaseUrl.includes('trycloudflare.com')
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs font-bold'
+                        : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+                    }`}
+                  >
+                    <span>☁️ 9Router Tunnel (Chạy Trên Web)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -298,7 +310,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                     }`}
                   >
                     <Server className="w-3.5 h-3.5" />
-                    <span>9Router Proxy (localhost:20128)</span>
+                    <span>💻 9Router Local</span>
                   </button>
 
                   <button
@@ -321,7 +333,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   type="text"
                   value={openRouterBaseUrl}
                   onChange={(e) => setOpenRouterBaseUrl(e.target.value)}
-                  placeholder="http://localhost:20128/v1"
+                  placeholder="https://medical-privileges-fairfield-lit.trycloudflare.com/v1"
                   className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                 />
               </div>
