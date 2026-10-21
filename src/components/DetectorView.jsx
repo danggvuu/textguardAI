@@ -54,7 +54,7 @@ export default function DetectorView({
         setLoadedFileName('');
         onShowToast?.({ message: 'Đã dán văn bản từ bộ nhớ tạm', type: 'info' });
       }
-    } catch {}
+    } catch { }
   };
 
   const handleClear = () => {
@@ -126,21 +126,17 @@ export default function DetectorView({
           <span>{t.detectorTitle}</span>
         </div>
         <h2 className="text-2xl md:text-3xl font-extrabold text-[#101828]">
-          Hệ Thống Giám Định & Phát Hiện AI Đa Tầng
+          Hệ Thống Giám Định & Phát Hiện Văn Bản AI
         </h2>
-        <p className="text-sm text-slate-500 mt-1 max-w-xl mx-auto">
-          Đo lường độ chính xác dựa trên chuẩn Benchmark HC3 & RAID. Phân biệt chính xác văn bản người thật và AI giả danh.
-        </p>
 
         {/* Tier Switcher (Free vs Pro) */}
         <div className="mt-5 inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200">
           <button
             onClick={() => setDetectorMode('free')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              detectorMode === 'free'
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${detectorMode === 'free'
+              ? 'bg-white text-emerald-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+              }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
             <span>Bản Miễn Phí (RoBERTa & HC3 Benchmark)</span>
@@ -148,11 +144,10 @@ export default function DetectorView({
 
           <button
             onClick={() => setDetectorMode('pro')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              detectorMode === 'pro'
-                ? 'bg-[#6248ff] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${detectorMode === 'pro'
+              ? 'bg-[#6248ff] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+              }`}
           >
             <Zap className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
             <span>Bản PRO Chuyên Sâu (OpenRouter / 9router)</span>
@@ -165,21 +160,19 @@ export default function DetectorView({
           <div className="inline-flex p-0.5 bg-slate-100 rounded-xl border border-slate-200">
             <button
               onClick={() => setDetectorDomain && setDetectorDomain('academic')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                detectorDomain === 'academic'
-                  ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-indigo-500/20'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${detectorDomain === 'academic'
+                ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-indigo-500/20'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <span>🎓 Nghiên cứu Khoa học & Luận văn (Bảo vệ từ nối học thuật)</span>
             </button>
             <button
               onClick={() => setDetectorDomain && setDetectorDomain('general')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                detectorDomain === 'general'
-                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-300'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${detectorDomain === 'general'
+                ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-300'
+                : 'text-slate-500 hover:text-slate-800'
+                }`}
             >
               <span>📝 Tự sự / Văn bản đời thường</span>
             </button>
@@ -196,9 +189,8 @@ export default function DetectorView({
           setIsDragOver(false);
           if (e.dataTransfer.files?.[0]) handleFileProcess(e.dataTransfer.files[0]);
         }}
-        className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs overflow-hidden mb-8 ${
-          isDragOver ? 'border-[#6248ff] ring-2 ring-[#6248ff]/20' : 'border-slate-200'
-        }`}
+        className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs overflow-hidden mb-8 ${isDragOver ? 'border-[#6248ff] ring-2 ring-[#6248ff]/20' : 'border-slate-200'
+          }`}
       >
         {/* Top Toolbar */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 flex-wrap gap-2">
@@ -288,13 +280,12 @@ export default function DetectorView({
           <button
             onClick={handleRun}
             disabled={!text.trim() || isDetecting}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all ${
-              !text.trim() || isDetecting
-                ? 'bg-slate-300 cursor-not-allowed'
-                : detectorMode === 'pro'
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all ${!text.trim() || isDetecting
+              ? 'bg-slate-300 cursor-not-allowed'
+              : detectorMode === 'pro'
                 ? 'bg-gradient-to-r from-[#6248ff] to-[#9333ea] hover:opacity-95 shadow-md shadow-[#6248ff]/25'
                 : 'bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/25'
-            }`}
+              }`}
           >
             {isDetecting ? (
               <>
@@ -504,11 +495,10 @@ export default function DetectorView({
                     <div key={name} className="flex items-center justify-between text-xs py-1 border-b border-slate-50">
                       <span className="font-semibold text-slate-700 capitalize">{name}</span>
                       <span
-                        className={`font-bold px-2 py-0.5 rounded ${
-                          isSafe
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}
+                        className={`font-bold px-2 py-0.5 rounded ${isSafe
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}
                       >
                         {score}% AI ({isSafe ? 'Pass' : 'Flagged'})
                       </span>
@@ -560,9 +550,8 @@ export default function DetectorView({
                   <span
                     key={idx}
                     onClick={() => setSelectedSentence(s)}
-                    className={`inline cursor-pointer px-1 py-0.5 mx-0.5 rounded transition-all duration-150 ${badgeClass} ${
-                      selectedSentence?.sentence === s.sentence ? 'ring-2 ring-[#6248ff] font-medium' : ''
-                    }`}
+                    className={`inline cursor-pointer px-1 py-0.5 mx-0.5 rounded transition-all duration-150 ${badgeClass} ${selectedSentence?.sentence === s.sentence ? 'ring-2 ring-[#6248ff] font-medium' : ''
+                      }`}
                     title={`AI: ${s.score}% (Nhấp để xem phân tích)`}
                   >
                     {s.sentence}{' '}
@@ -581,13 +570,12 @@ export default function DetectorView({
                         Phân tích câu đã chọn:
                       </span>
                       <span
-                        className={`text-xs font-extrabold px-2 py-0.5 rounded ${
-                          selectedSentence.score >= 65
-                            ? 'bg-red-100 text-red-800'
-                            : selectedSentence.score >= 35
+                        className={`text-xs font-extrabold px-2 py-0.5 rounded ${selectedSentence.score >= 65
+                          ? 'bg-red-100 text-red-800'
+                          : selectedSentence.score >= 35
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-emerald-100 text-emerald-800'
-                        }`}
+                          }`}
                       >
                         AI Score: {selectedSentence.score}%
                       </span>
