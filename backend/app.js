@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
 import { PRESET_SAMPLES } from './presets.js';
-import { resolveApiKey, getAutoDetected9RouterKey, resolve9RouterModel } from './keyHelper.js';
+import { resolveApiKey, getAutoDetected9RouterKey, resolve9RouterModel, DEFAULT_9ROUTER_TUNNEL, DEFAULT_9ROUTER_KEY } from './keyHelper.js';
 
 dotenv.config();
 
@@ -51,11 +51,16 @@ app.get('/api/presets', (req, res) => {
 // Scan / Fetch Models from 9Router or OpenRouter endpoint
 app.post('/api/models', async (req, res) => {
   try {
-    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', includeInternal = false } = req.body;
+    const isCloud = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production');
+    let { baseUrl = '', apiKey = '', includeInternal = false } = req.body;
+
+    if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
+      baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
+    }
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
 
-    const effectiveKey = resolveApiKey(apiKey, cleanUrl);
+    const effectiveKey = resolveApiKey(apiKey, cleanUrl) || DEFAULT_9ROUTER_KEY;
     const headers = { 'Content-Type': 'application/json' };
     if (effectiveKey) {
       headers['Authorization'] = `Bearer ${effectiveKey}`;
@@ -179,11 +184,16 @@ app.post('/api/models', async (req, res) => {
 app.post('/api/models/test', async (req, res) => {
   const startTime = Date.now();
   try {
-    const { baseUrl = 'http://localhost:20128/v1', apiKey = '', model = 'kr/claude-sonnet-4.5' } = req.body;
+    const isCloud = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production');
+    let { baseUrl = '', apiKey = '', model = 'kr/claude-sonnet-4.5' } = req.body;
+
+    if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
+      baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
+    }
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const chatEndpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
 
-    const effectiveKey = resolveApiKey(apiKey, cleanUrl);
+    const effectiveKey = resolveApiKey(apiKey, cleanUrl) || DEFAULT_9ROUTER_KEY;
     const effectiveModel = resolve9RouterModel(model);
 
     const headers = { 'Content-Type': 'application/json' };

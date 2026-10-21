@@ -40,7 +40,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
     if (isOpen) {
       const isCloud = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
       const defaultUrl = isCloud
-        ? 'https://medical-privileges-fairfield-lit.trycloudflare.com/v1'
+        ? 'https://r74fefq.abc-tunnel.us/v1'
         : 'http://localhost:20128/v1';
       const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
 
@@ -49,8 +49,8 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       let storedOrUrl = localStorage.getItem('tg_openrouter_url') || defaultUrl;
       const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
 
-      // On Vercel cloud, if URL was set to unreachable localhost, auto-switch to 9Router Cloudflare Tunnel
-      if (isCloud && (storedOrUrl.includes('localhost') || storedOrUrl.includes('127.0.0.1') || !storedOrKey)) {
+      // On Vercel cloud, update expired tunnels or localhost to the active 9Router tunnel
+      if (isCloud && (storedOrUrl.includes('localhost') || storedOrUrl.includes('127.0.0.1') || storedOrUrl.includes('trycloudflare.com') || !storedOrKey)) {
         storedOrUrl = defaultUrl;
         storedOrKey = defaultKey;
         localStorage.setItem('tg_openrouter_url', defaultUrl);

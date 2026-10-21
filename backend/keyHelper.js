@@ -33,10 +33,14 @@ export function getAutoDetected9RouterKey() {
   return 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
 }
 
+export const DEFAULT_9ROUTER_TUNNEL = 'https://r74fefq.abc-tunnel.us/v1';
+export const DEFAULT_9ROUTER_KEY = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
+
 /**
  * Resolve effective API key & Endpoint configuration for Pro mode:
- * Automatically uses Cloudflare Meta Llama 3.3 70B if running on cloud / Vercel
- * or if local 9Router endpoint is unreachable.
+ * Priority 1: User's 9Router Key & Public Tunnel (or localhost if local)
+ * Priority 2: User's OpenRouter personal key (sk-or-...)
+ * Priority 3: Fallback Cloudflare AI (Meta Llama 3.3 70B)
  */
 export function resolveProConfig(providedKey = '', baseUrl = '', model = '') {
   const cleanKey = (providedKey || '').trim();
@@ -63,23 +67,33 @@ export function resolveProConfig(providedKey = '', baseUrl = '', model = '') {
     };
   }
 
-  // Case 3: On Vercel / Cloud serverless where localhost / trycloudflare is unreachable
-  const isUnreachableHost = !cleanUrl || cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1') || cleanUrl.includes('trycloudflare.com');
-  if (isCloudEnv || isUnreachableHost) {
+  // Case 3: Public 9Router Tunnel URL (e.g. https://r74fefq.abc-tunnel.us/v1)
+  if (cleanUrl && !cleanUrl.includes('localhost') && !cleanUrl.includes('127.0.0.1')) {
     return {
-      baseUrl: CLOUD_AI_CONFIG.baseUrl,
-      apiKey: CLOUD_AI_CONFIG.apiKey,
-      model: CLOUD_AI_CONFIG.model,
-      providerName: 'Cloudflare AI (Meta Llama 3.3 70B)'
+      baseUrl: cleanUrl,
+      apiKey: cleanKey || getAutoDetected9RouterKey() || DEFAULT_9ROUTER_KEY,
+      model: resolve9RouterModel(model || 'kr/claude-sonnet-4.5'),
+      providerName: '9Router (Tunnel)'
     };
   }
 
-  // Case 3: Local 9Router
+  // Case 4: Running locally on user machine -> connect to localhost 9Router directly
+  if (!isCloudEnv) {
+    return {
+      baseUrl: cleanUrl || 'http://localhost:20128/v1',
+      apiKey: cleanKey || getAutoDetected9RouterKey() || DEFAULT_9ROUTER_KEY,
+      model: resolve9RouterModel(model || 'kr/claude-sonnet-4.5'),
+      providerName: '9Router (Local)'
+    };
+  }
+
+  // Case 5: Running on Vercel cloud with no public tunnel specified in request
+  // Use the verified active 9Router Tunnel URL directly with user's key!
   return {
-    baseUrl: cleanUrl || 'http://localhost:20128/v1',
-    apiKey: cleanKey || getAutoDetected9RouterKey(),
+    baseUrl: DEFAULT_9ROUTER_TUNNEL,
+    apiKey: cleanKey || getAutoDetected9RouterKey() || DEFAULT_9ROUTER_KEY,
     model: resolve9RouterModel(model || 'kr/claude-sonnet-4.5'),
-    providerName: '9Router Local'
+    providerName: '9Router'
   };
 }
 
