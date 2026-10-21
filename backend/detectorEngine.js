@@ -99,7 +99,30 @@ const EN_ADVERSARIAL_NARRATIVE_TRIGGERS = [
   'finding solace in the quiet',
   'a silver lining in the',
   'take a step back and breathe',
-  'without constantly worrying about what comes next'
+  'without constantly worrying about what comes next',
+  // ChatGPT Casual Reflective & Productivity Essay Tropes
+  'i used to think that',
+  'i used to believe that',
+  'things rarely went as planned',
+  'when things don\'t go as planned',
+  'when things dont go as planned',
+  'decided to try something different',
+  'sounds pretty simple, but somehow',
+  'still not very good at managing',
+  'without even realizing it',
+  'like a personal failure',
+  'doesn\'t mean following a perfect schedule',
+  'doesn\'t mean following a perfect',
+  'get back on track when things',
+  'maybe this isn\'t a huge change',
+  'can\'t say that my life has suddenly',
+  'feel a little more in control of my time',
+  'feel a little more in control',
+  'at least when i go to bed',
+  'instead of worrying about everything i didn\'t do',
+  'instead of worrying about everything i didnt do',
+  'one assignment, sometimes i got distracted',
+  'focusing on what matters most'
 ];
 
 // Vietnamese Standard Clichés & Academic Discourse Markers
@@ -260,6 +283,24 @@ function analyzeSentence(sentence, lang, avgLength) {
       aiScore += 20;
       reasons.push('Rigid parallel rhetorical clause structure (e.g. "not only... but also")');
     }
+
+    // 6. ChatGPT Epiphany & Antithetical Redefinition ("doesn't mean X, it means Y")
+    if (/\bdoesn'?t mean\b.*?\bit means\b/i.test(lower)) {
+      aiScore += 45;
+      reasons.push('ChatGPT Epiphany Blueprint: Antithetical redefinition trope ("doesn\'t mean X, it means Y")');
+    }
+
+    // 7. ChatGPT Trifold Symmetrical Parallelism ("Sometimes..., sometimes..., and sometimes...")
+    if (/\bsometimes\b.*?\bsometimes\b.*?\band sometimes\b/i.test(lower)) {
+      aiScore += 40;
+      reasons.push('ChatGPT Symmetrical Trifold Parallelism ("Sometimes..., sometimes..., and sometimes...")');
+    }
+
+    // 8. ChatGPT Reflective Narrative Closure ("instead of worrying about everything I didn't do")
+    if (/\binstead of worrying about everything\b/i.test(lower) || /\bcan'?t say that my life has suddenly\b/i.test(lower)) {
+      aiScore += 40;
+      reasons.push('ChatGPT Reflective Moral Wrap-up / Humble Disclaimer conclusion');
+    }
   } else {
     // Vietnamese Analysis
     const matchedTriggers = VI_AI_TRIGGERS.filter(trig => lower.includes(trig));
@@ -364,7 +405,7 @@ export async function detectFreeTier(text) {
   // Document-level signals
   const flaggedSentences = sentenceAnalyses.filter(s => s.score >= 50);
   const narrativeFlagCount = sentenceAnalyses.filter(s => 
-    s.reasons.some(r => r.includes('philosophical') || r.includes('triết lý') || r.includes('Adversarial') || r.includes('giả lập'))
+    s.reasons.some(r => /philosophical|triết lý|adversarial|giả lập|chatgpt|epiphany|moral|cliché/i.test(r))
   ).length;
 
   // Compute composite score
@@ -374,7 +415,7 @@ export async function detectFreeTier(text) {
   const paragraphs = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   if (paragraphs.length >= 3) {
     const aiParaStarters = lang === 'en'
-      ? /^(?:furthermore|moreover|in addition|additionally|first and foremost|one of the|on the other hand|in conclusion|to sum up|ultimately|at its core|notably)/i
+      ? /^(?:furthermore|moreover|in addition|additionally|first and foremost|one of the|on the other hand|in conclusion|to sum up|ultimately|at its core|notably|i used to think|i used to believe|a few (?:weeks|days|months) ago|i'?m still not|to be honest|maybe this isn'?t|still, i feel|at least when)/i
       : /^(?:một trong những|bên cạnh đó|để giải quyết|ngoài ra|một yếu tố khác|môi trường đại học cũng|tóm lại|cuộc sống đại học là|quan trọng nhất|hơn nữa|mặt khác|nhìn chung|rõ ràng là|chuyện học đại học)/i;
     
     const matchingParas = paragraphs.filter(p => aiParaStarters.test(p)).length;
