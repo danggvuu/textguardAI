@@ -25,9 +25,13 @@ export default function App() {
   const [detectorText, setDetectorText] = useState('');
   const [detectorData, setDetectorData] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [detectorMode, setDetectorMode] = useState('free'); // 'free' | 'pro'
+  const [detectorMode, setDetectorMode] = useState(() => {
+    return localStorage.getItem('tg_detector_mode') || 'pro';
+  });
   const [detectorDomain, setDetectorDomain] = useState('academic'); // 'academic' | 'general'
-  const [activeModel, setActiveModel] = useState('claude');
+  const [activeModel, setActiveModel] = useState(() => {
+    return localStorage.getItem('tg_model') || 'claude';
+  });
 
   // Processing state & stage text
   const [isProcessing, setIsProcessing] = useState(false);
@@ -242,6 +246,7 @@ export default function App() {
               detectorMode={detectorMode}
               setDetectorMode={(mode) => {
                 setDetectorMode(mode);
+                localStorage.setItem('tg_detector_mode', mode);
                 localStorage.setItem('tg_provider', mode);
               }}
               detectorDomain={detectorDomain}

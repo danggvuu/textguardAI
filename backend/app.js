@@ -34,7 +34,13 @@ const upload = multer({
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'TextGuard AI Humanizer API', time: new Date() });
+  res.json({
+    status: 'ok',
+    service: 'TextGuard AI Humanizer API',
+    version: '2.3.0',
+    engine: 'Cloudflare AI + 9Router + Multi-Stage Forensic NLP',
+    time: new Date()
+  });
 });
 
 // Presets list

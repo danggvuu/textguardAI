@@ -53,7 +53,17 @@ export function resolveProConfig(providedKey = '', baseUrl = '', model = '') {
     };
   }
 
-  // Case 2: On Vercel / Cloud serverless where localhost / trycloudflare is unreachable
+  // Case 2: Direct Cloudflare AI endpoint
+  if (cleanUrl.includes('cloudflare.com')) {
+    return {
+      baseUrl: cleanUrl || CLOUD_AI_CONFIG.baseUrl,
+      apiKey: cleanKey || CLOUD_AI_CONFIG.apiKey,
+      model: CLOUD_AI_CONFIG.model,
+      providerName: 'Cloudflare AI (Meta Llama 3.3 70B)'
+    };
+  }
+
+  // Case 3: On Vercel / Cloud serverless where localhost / trycloudflare is unreachable
   const isUnreachableHost = !cleanUrl || cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1') || cleanUrl.includes('trycloudflare.com');
   if (isCloudEnv || isUnreachableHost) {
     return {
