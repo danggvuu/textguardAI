@@ -467,25 +467,25 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                     </span>
                   </div>
 
-                  {/* Model 5: Gemini 2.5 Flash */}
+                  {/* Model 5: Poolside Laguna */}
                   <div
                     onClick={() => {
-                      setOpenRouterModel('gemini-2.5-flash');
-                      handleTestSelectedModel('gemini-2.5-flash');
+                      setOpenRouterModel('ps/poolside/laguna-s-2.1');
+                      handleTestSelectedModel('ps/poolside/laguna-s-2.1');
                     }}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                      openRouterModel === 'gemini-2.5-flash'
-                        ? 'bg-white border-emerald-600 ring-2 ring-emerald-600/30 shadow-xs'
-                        : 'bg-white/90 border-emerald-200 hover:border-emerald-400'
+                      openRouterModel.includes('laguna')
+                        ? 'bg-white border-teal-600 ring-2 ring-teal-600/30 shadow-xs'
+                        : 'bg-white/90 border-teal-200 hover:border-teal-400'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-zinc-900 font-mono">Gemini 2.5 Flash</span>
-                      {openRouterModel === 'gemini-2.5-flash' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                      <span className="font-bold text-xs text-zinc-900 font-mono">Poolside Laguna</span>
+                      {openRouterModel.includes('laguna') && <Check className="w-3.5 h-3.5 text-teal-600" />}
                     </div>
-                    <p className="text-[10px] text-zinc-600 line-clamp-1">Google Direct (~750ms)</p>
-                    <span className="inline-block mt-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
-                      ⚡ Tốc độ ánh sáng
+                    <p className="text-[10px] text-zinc-600 line-clamp-1">Laguna S 2.1 (Active 100%)</p>
+                    <span className="inline-block mt-1 text-[9px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded">
+                      🌊 Tốc độ cao & Viết mượt
                     </span>
                   </div>
 

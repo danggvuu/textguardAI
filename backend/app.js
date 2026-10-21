@@ -206,12 +206,16 @@ app.post('/api/models/test', async (req, res) => {
 
     if (!response.ok) {
       let friendlyTip = '';
-      if (responseText.includes('Cursor AgentService') || responseText.includes('empty turn')) {
-        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent. Bạn có thể chọn "kr/claude-sonnet-4.5" hoặc "gemini-2.5-flash" để chạy mượt 100%!';
+      if (responseText.includes('RESOURCE_EXHAUSTED') || responseText.includes('429') || responseText.includes('quota')) {
+        friendlyTip = '💡 Tip: Toàn bộ 4 key Gemini trên 9Router của bạn đều đã vượt quá giới hạn lượt dùng trong ngày (429 Quota Exceeded). Hãy chọn "kr/claude-sonnet-4.5" (Kiro) hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast" (Cloudflare) đang Active 100%!';
+      } else if (responseText.includes('Missing Authentication header') || responseText.includes('401')) {
+        friendlyTip = '💡 Tip: Model này chưa được cấp Authorization Header hợp lệ trên upstream provider trong 9Router. Hãy chọn "kr/claude-sonnet-4.5" hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast"!';
+      } else if (responseText.includes('Cursor AgentService') || responseText.includes('empty turn')) {
+        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent. Bạn có thể chọn "kr/claude-sonnet-4.5" hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast" để chạy mượt 100%!';
       } else if (responseText.includes('not licensed to use Copilot') || responseText.includes('Copilot')) {
         friendlyTip = '💡 Tip: Tài khoản GitHub Copilot trên máy chưa kích hoạt license. Hãy chọn "kr/claude-sonnet-4.5" (Kiro) hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast"!';
       } else if (responseText.includes('Paid Model - Credits Required') || responseText.includes('402')) {
-        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "kr/claude-sonnet-4.5" hoặc "gemini-2.5-flash"!';
+        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "kr/claude-sonnet-4.5" (Kiro) hoàn toàn miễn phí!';
       }
 
       return res.status(response.status).json({
