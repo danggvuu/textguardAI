@@ -26,6 +26,7 @@ export default function App() {
   const [detectorData, setDetectorData] = useState(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectorMode, setDetectorMode] = useState('free'); // 'free' | 'pro'
+  const [detectorDomain, setDetectorDomain] = useState('academic'); // 'academic' | 'general'
   const [activeModel, setActiveModel] = useState('claude');
 
   // Processing state & stage text
@@ -155,6 +156,7 @@ export default function App() {
         body: JSON.stringify({
           text,
           tier: detectorMode,
+          domain: detectorDomain,
           openRouterKey: storedKey,
           openRouterBaseUrl: storedUrl,
           openRouterModel: storedModel
@@ -249,6 +251,8 @@ export default function App() {
                 setDetectorMode(mode);
                 localStorage.setItem('tg_provider', mode);
               }}
+              detectorDomain={detectorDomain}
+              setDetectorDomain={setDetectorDomain}
               onOpenSettings={() => setIsSettingsOpen(true)}
               t={t}
             />

@@ -267,6 +267,7 @@ app.post('/api/detect', async (req, res) => {
     const {
       text,
       tier = 'free',
+      domain = 'academic',
       openRouterKey,
       openRouterBaseUrl,
       openRouterModel
@@ -278,6 +279,7 @@ app.post('/api/detect', async (req, res) => {
 
     const result = await detectAIText(text, {
       tier,
+      domain,
       openRouterKey,
       openRouterBaseUrl,
       openRouterModel
