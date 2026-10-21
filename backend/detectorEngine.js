@@ -521,13 +521,19 @@ export async function detectOpenRouterPro(text, config = {}) {
 
   const prompt = `You are an elite computational forensic linguist specializing in detecting AI-generated text, calibrated against Stanford HC3 & RAID benchmarks.
 
-SPECIAL FORENSIC INSTRUCTION ON TWO STYLES OF AI:
+SPECIAL FORENSIC INSTRUCTION ON TEXT STYLES & BENCHMARKS:
 1. ACADEMIC AI (Direct LLM output): Textbook argumentative structure, overt paragraph transition formulas ("Một trong những", "Bên cạnh đó", "Để giải quyết vấn đề", "Ngoài ra", "Tóm lại, ..."), rigid parallelism ("không chỉ... mà còn..."), uniform 22-26 word clauses. Expected score: 90% - 98% AI.
-2. ADVERSARIAL FAUX-HUMAN AI (Countering AI Detectors): The LLM was explicitly prompted to sound human, conversational, or casual (e.g. using Vietnamese "t", "mình", "loay hoay", "y hệt").
+2. ADVERSARIAL FAUX-HUMAN AI (Countering AI Detectors): The LLM was explicitly prompted to sound human, conversational, or casual (e.g. using Vietnamese "t", "mình", "loay hoay", "y hệt" or English "to be honest", "I used to think").
 CRITICAL LLM SIGNATURE: Despite the surface conversational tone, notice the underlying AI generation blueprint:
 - A rigid 8-stage personal essay progression (Anecdote -> Conflict -> Coping Mechanism -> Broader Generalization -> Life-Lesson / Epiphany).
-- The classic ChatGPT "Philosophical Epiphany / Moral Wrap-up" conclusion ("tiến bộ không phải lúc nào cũng thể hiện bằng thành tích lớn... Đôi khi nó chỉ là... Những thay đổi nhỏ... nhưng vẫn đáng ghi nhận"). Concluding personal reflections with a 3-part philosophical life-lesson summary is a hallmark of LLM RLHF conditioning, NOT organic human journaling.
+- The classic ChatGPT "Philosophical Epiphany / Moral Wrap-up" conclusion ("tiến bộ không phải lúc nào cũng thể hiện bằng thành tích lớn...", "doesn't mean following a perfect schedule, it means..."). Concluding personal reflections with a 3-part philosophical life-lesson summary is a hallmark of LLM RLHF conditioning, NOT organic human journaling.
 If this faux-human persona and epiphany blueprint are detected, classify it as AI-generated (Adversarial Mimic), with overallAiProbability between 75% and 88%!
+3. CRITICAL FALSE POSITIVE SAFEGUARD (GENUINE HUMAN SCHOLARSHIP & MEMOIRS):
+Real peer-reviewed research papers, medical abstracts, and authentic essays legitimately use formal discourse markers ("Furthermore", "In conclusion", "Our longitudinal observations indicate").
+DO NOT flag genuine scholarship as AI if:
+- It contains concrete empirical data, precise scientific/technical methodology, or domain-specific biomedical observations (e.g., antibody titers, peripheral blood, antigen restimulation).
+- Or in literary writing, it features vivid unvarnished sensory detail (e.g., "drooling on his shirt", "con Vàng đuổi ruồi", "chân đạp gai").
+Authentic human scholarship and creative memoirs must be classified as Human-written with overallAiProbability between 5% and 25%!
 
 SCHEMA TO RETURN (Valid JSON strictly, no markdown backticks or commentary):
 {
@@ -592,10 +598,40 @@ TEXT TO ANALYZE:
     throw new Error(`Model "${openRouterModel}" (${response.status}): ${errorBody}`);
   }
 
-  const data = await response.json();
-  const rawReply = data?.choices?.[0]?.message?.content?.trim() || '';
+  const responseText = await response.text();
+  let rawReply = '';
 
-  let jsonString = rawReply;
+  // 1. Try direct JSON parsing
+  try {
+    const data = JSON.parse(responseText);
+    rawReply = data?.choices?.[0]?.message?.content?.trim() 
+      || data?.choices?.[0]?.delta?.content?.trim() 
+      || data?.choices?.[0]?.message?.reasoning_content?.trim() 
+      || '';
+  } catch {
+    // 2. Parse Server-Sent Events (SSE) stream if 9Router returned text/event-stream
+    if (responseText.includes('data:')) {
+      const lines = responseText.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('data:') && !trimmed.includes('[DONE]')) {
+          try {
+            const jsonPart = trimmed.replace(/^data:\s*/, '');
+            if (jsonPart) {
+              const chunk = JSON.parse(jsonPart);
+              const piece = chunk?.choices?.[0]?.delta?.content 
+                || chunk?.choices?.[0]?.message?.content
+                || chunk?.choices?.[0]?.delta?.reasoning_content
+                || '';
+              if (piece) rawReply += piece;
+            }
+          } catch {}
+        }
+      }
+    }
+  }
+
+  let jsonString = rawReply.trim();
   const codeBlockMatch = rawReply.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch) {
     jsonString = codeBlockMatch[1].trim();
@@ -603,6 +639,10 @@ TEXT TO ANALYZE:
     const firstBrace = jsonString.indexOf('{');
     const lastBrace = jsonString.lastIndexOf('}');
     jsonString = jsonString.slice(firstBrace, lastBrace + 1);
+  }
+
+  if (!jsonString) {
+    throw new Error(`LLM output was empty or invalid SSE. Raw reply length: ${rawReply.length}`);
   }
 
   const parsed = JSON.parse(jsonString);
