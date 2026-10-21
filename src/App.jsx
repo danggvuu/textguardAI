@@ -139,10 +139,9 @@ export default function App() {
 
     setIsDetecting(true);
     try {
-      const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
-      const storedKey = localStorage.getItem('tg_openrouter_key') || defaultKey;
-      const storedUrl = localStorage.getItem('tg_openrouter_url') || 'http://localhost:20128/v1';
-      const storedModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
+      const storedKey = localStorage.getItem('tg_openrouter_key') || '';
+      const storedUrl = localStorage.getItem('tg_openrouter_url') || '';
+      const storedModel = localStorage.getItem('tg_openrouter_model') || '';
 
       const res = await fetch('/api/detect', {
         method: 'POST',

@@ -321,15 +321,15 @@ app.post('/api/humanize', async (req, res) => {
     // 1. Resolve key (auto-detects local 9Router key if on localhost)
     const effectiveKey = resolveApiKey(apiKey, baseUrl);
 
-    // Try LLM if effective API Key is available
-    if (effectiveKey && provider !== 'free') {
+    // Try LLM if provider is not free
+    if (provider !== 'free') {
       try {
         humanizedText = await humanizeWithLLM(
           text,
           { strength, readability, purpose },
-          { apiKey: effectiveKey, provider, model: model || 'gemini-2.5-flash', baseUrl }
+          { apiKey: effectiveKey, provider, model: model || '@cf/meta/llama-3.3-70b-instruct-fp8-fast', baseUrl }
         );
-        engineUsed = provider;
+        engineUsed = (provider === 'pro' || provider === 'openrouter') ? 'Meta Llama 3.3 70B (Cloudflare AI)' : provider;
       } catch (llmErr) {
         console.warn('LLM humanization failed, falling back to local NLP engine:', llmErr.message);
         humanizedText = humanizeLocal(text, { strength, readability, purpose });

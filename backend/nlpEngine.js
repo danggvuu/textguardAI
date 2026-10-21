@@ -4,7 +4,7 @@
  * for Vietnamese and English to bypass AI detectors.
  */
 
-import { resolveApiKey, resolve9RouterModel } from './keyHelper.js';
+import { resolveApiKey, resolve9RouterModel, resolveProConfig } from './keyHelper.js';
 
 // Vietnamese AI Clichés and natural human alternatives
 const VI_CLICHES = [
@@ -265,10 +265,18 @@ export function humanizeLocal(text, options = {}) {
  * Humanize using an External LLM (e.g. Gemini or OpenAI API) if the user supplied an API key
  */
 export async function humanizeWithLLM(text, options = {}, config = {}) {
-  const { apiKey, provider = 'gemini', model = 'gemini-2.0-flash' } = config;
+  const { provider = 'gemini', model = 'gemini-2.0-flash' } = config;
   const { strength = 'balanced', readability = 'college', purpose = 'general' } = options;
 
-  if (!apiKey) {
+  let effectiveApiKey = config.apiKey;
+  let proConfig = null;
+
+  if (provider === 'pro' || provider === 'openrouter') {
+    proConfig = resolveProConfig(config.apiKey, config.baseUrl, model);
+    effectiveApiKey = proConfig.apiKey;
+  }
+
+  if (!effectiveApiKey) {
     throw new Error('No API key provided');
   }
 
@@ -338,11 +346,12 @@ TRANSFORMATION RULES:
     return data?.choices?.[0]?.message?.content?.trim();
   }
 
-  if (provider === 'openrouter') {
-    const cleanBaseUrl = (config.baseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
+  if (provider === 'openrouter' || provider === 'pro') {
+    const activeProConfig = proConfig || resolveProConfig(config.apiKey, config.baseUrl, model);
+    const cleanBaseUrl = (activeProConfig.baseUrl || 'https://api.cloudflare.com/client/v4/accounts/c4e8774800ded088614353f5d23f23d6/ai/v1').replace(/\/+$/, '');
     const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
-    const effectiveKey = resolveApiKey(apiKey, cleanBaseUrl);
-    const effectiveModel = resolve9RouterModel(model || 'kr/claude-sonnet-4.5');
+    const effectiveKey = activeProConfig.apiKey;
+    const effectiveModel = activeProConfig.model;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -361,7 +370,7 @@ TRANSFORMATION RULES:
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`OpenRouter/9Router API Error: ${response.status} - ${err}`);
+      throw new Error(`${proConfig.providerName} Error: ${response.status} - ${err}`);
     }
 
     const data = await response.json();

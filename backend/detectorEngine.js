@@ -10,7 +10,7 @@
  */
 
 import { detectLanguage, splitSentences } from './nlpEngine.js';
-import { resolveApiKey, resolve9RouterModel } from './keyHelper.js';
+import { resolveApiKey, resolve9RouterModel, resolveProConfig, CLOUD_AI_CONFIG } from './keyHelper.js';
 
 // Top 50+ SOTA English LLM bias signatures (from HC3, RAID, and empirical GPT-4/Claude/Gemini research)
 const EN_HIGH_CONFIDENCE_TRIGGERS = [
@@ -532,22 +532,23 @@ export async function detectFreeTier(text, options = {}) {
 
 /**
  * Pro Tier Detection Engine:
- * Powered by OpenRouter ("9router") API Key.
+ * Powered by high-parameter Cloud LLM (Meta Llama 3.3 70B / DeepSeek R1 / Claude)
  * Performs deep forensic linguistic deconstruction for English & Vietnamese
  */
 export async function detectOpenRouterPro(text, config = {}) {
   const {
     openRouterKey,
-    openRouterBaseUrl = 'http://localhost:20128/v1',
-    openRouterModel = 'gehihi',
+    openRouterBaseUrl,
+    openRouterModel,
     domain = 'academic'
   } = config;
 
-  const cleanBaseUrl = (openRouterBaseUrl || 'http://localhost:20128/v1').replace(/\/+$/, '');
+  const proConfig = resolveProConfig(openRouterKey, openRouterBaseUrl, openRouterModel);
+  const cleanBaseUrl = (proConfig.baseUrl || 'https://api.cloudflare.com/client/v4/accounts/c4e8774800ded088614353f5d23f23d6/ai/v1').replace(/\/+$/, '');
   const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
 
-  const effectiveKey = resolveApiKey(openRouterKey, cleanBaseUrl);
-  const effectiveModel = resolve9RouterModel(openRouterModel);
+  const effectiveKey = proConfig.apiKey;
+  const effectiveModel = proConfig.model;
 
   if (!effectiveKey) {
     throw new Error('Vui lòng nhập API Key trong Cài đặt (hoặc bật 9Router) để dùng chế độ Pro');
@@ -704,7 +705,7 @@ TEXT TO ANALYZE:
     humanScore,
     overallAiProbability: aiScore,
     tier: 'pro',
-    modelUsed: `${openRouterModel} (9Router Pro Forensic Engine)`
+    modelUsed: `${effectiveModel} (${proConfig.providerName})`
   };
 }
 
@@ -716,22 +717,30 @@ export async function detectAIText(text, options = {}) {
     tier = 'free',
     domain = 'academic',
     openRouterKey,
-    openRouterBaseUrl = 'http://localhost:20128/v1',
-    openRouterModel = 'gehihi'
+    openRouterBaseUrl,
+    openRouterModel
   } = options;
 
   if (tier === 'pro') {
-    const key = resolveApiKey(openRouterKey, openRouterBaseUrl);
-    if (key) {
+    try {
+      return await detectOpenRouterPro(text, {
+        domain,
+        openRouterKey,
+        openRouterBaseUrl,
+        openRouterModel
+      });
+    } catch (err) {
+      console.warn('Pro detection attempt failed, retrying with direct Cloudflare AI fallback:', err.message);
       try {
         return await detectOpenRouterPro(text, {
           domain,
-          openRouterKey: key,
-          openRouterBaseUrl,
-          openRouterModel: openRouterModel || 'gehihi'
+          openRouterKey: CLOUD_AI_CONFIG.apiKey,
+          openRouterBaseUrl: CLOUD_AI_CONFIG.baseUrl,
+          openRouterModel: CLOUD_AI_CONFIG.model
         });
-      } catch (err) {
-        console.warn('Pro detection failed, fallback to calibrated Free Tier:', err.message);
+      } catch (backupErr) {
+        console.error('All Pro detection models failed:', backupErr);
+        throw new Error(`Bản PRO không thể kết nối tới mô hình AI: ${backupErr.message}`);
       }
     }
   }
