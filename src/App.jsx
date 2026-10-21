@@ -139,16 +139,10 @@ export default function App() {
 
     setIsDetecting(true);
     try {
-      const storedKey = localStorage.getItem('tg_openrouter_key') || '';
-      const storedUrl = localStorage.getItem('tg_openrouter_url') || 'https://openrouter.ai/api/v1';
-      const storedModel = localStorage.getItem('tg_openrouter_model') || 'google/gemini-2.0-flash-001';
-
-      if (detectorMode === 'pro' && !storedKey) {
-        showToast({ message: 'Chưa cấu hình OpenRouter Key. Vui lòng mở Cài đặt.', type: 'error' });
-        setIsSettingsOpen(true);
-        setIsDetecting(false);
-        return;
-      }
+      const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
+      const storedKey = localStorage.getItem('tg_openrouter_key') || defaultKey;
+      const storedUrl = localStorage.getItem('tg_openrouter_url') || 'http://localhost:20128/v1';
+      const storedModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
 
       const res = await fetch('/api/detect', {
         method: 'POST',

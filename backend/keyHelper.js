@@ -31,11 +31,8 @@ export function resolveApiKey(providedKey, baseUrl = '') {
   if (providedKey && typeof providedKey === 'string' && providedKey.trim()) {
     return providedKey.trim();
   }
-  const isLocal = !baseUrl || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1') || baseUrl.includes('20128');
-  if (isLocal) {
-    return getAutoDetected9RouterKey();
-  }
-  return '';
+  // Always fallback to the active 9Router key
+  return getAutoDetected9RouterKey();
 }
 
 /**

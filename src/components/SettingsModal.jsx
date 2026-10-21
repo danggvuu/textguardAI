@@ -262,6 +262,23 @@ export default function SettingsModal({ isOpen, onClose, t }) {
           {/* Configuration Panel (When Pro selected) */}
           {provider === 'pro' && (
             <div className="space-y-4 p-4.5 bg-zinc-50/70 rounded-2xl border border-zinc-200 animate-in fade-in duration-200">
+              {/* Cloud vs Local Warning Banner */}
+              {typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">⚠️ Bạn đang mở trên Vercel Cloud ({window.location.hostname})</p>
+                    <p className="mt-1 text-amber-800 leading-relaxed text-[11px]">
+                      Server đám mây của Vercel (đặt tại Mỹ) không thể kết nối tới <strong>9Router trên máy tính cá nhân của bạn (localhost:20128)</strong>. 
+                      Để kết nối trực tiếp với 9Router và các model Claude/Llama/Ollama trên máy, vui lòng mở trang web nội bộ tại:{' '}
+                      <a href="http://localhost:3001" target="_blank" rel="noreferrer" className="text-indigo-700 font-extrabold underline">
+                        http://localhost:3001
+                      </a>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Endpoint Preset Selector */}
               <div>
                 <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
