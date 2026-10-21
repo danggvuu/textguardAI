@@ -284,7 +284,8 @@ app.post('/api/models/test', async (req, res) => {
 // AI Detection Endpoint
 app.post('/api/detect', async (req, res) => {
   try {
-    const {
+    const isCloud = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production');
+    let {
       text,
       tier = 'free',
       domain = 'academic',
@@ -295,6 +296,13 @@ app.post('/api/detect', async (req, res) => {
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Văn bản không được để trống' });
+    }
+
+    if (!openRouterBaseUrl || (isCloud && (openRouterBaseUrl.includes('localhost') || openRouterBaseUrl.includes('127.0.0.1')))) {
+      openRouterBaseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
+    }
+    if (!openRouterKey) {
+      openRouterKey = DEFAULT_9ROUTER_KEY;
     }
 
     const result = await detectAIText(text, {
@@ -316,14 +324,15 @@ app.post('/api/detect', async (req, res) => {
 app.post('/api/humanize', async (req, res) => {
   const startTime = Date.now();
   try {
-    const {
+    const isCloud = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production');
+    let {
       text,
       strength = 'balanced',
       readability = 'college',
       purpose = 'general',
       apiKey,
-      provider = 'gemini',
-      model = 'gemini-1.5-flash',
+      provider = 'pro',
+      model = 'kr/claude-sonnet-4.5',
       baseUrl
     } = req.body;
 
@@ -331,11 +340,18 @@ app.post('/api/humanize', async (req, res) => {
       return res.status(400).json({ error: 'Văn bản cần xử lý không được để trống' });
     }
 
+    if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
+      baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
+    }
+    if (!apiKey) {
+      apiKey = DEFAULT_9ROUTER_KEY;
+    }
+
     let humanizedText = '';
     let engineUsed = 'local-nlp';
 
     // 1. Resolve key (auto-detects local 9Router key if on localhost)
-    const effectiveKey = resolveApiKey(apiKey, baseUrl);
+    const effectiveKey = resolveApiKey(apiKey, baseUrl) || DEFAULT_9ROUTER_KEY;
 
     // Try LLM if provider is not free
     if (provider !== 'free') {

@@ -49,8 +49,32 @@ export default function App() {
     }, 3500);
   };
 
-  // Initial default sample if empty
+  // Initial default sample & proactive 9Router migration
   useEffect(() => {
+    // Proactively initialize & clean up 9Router credentials on web
+    const isCloud = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const defaultTunnel = 'https://r74fefq.abc-tunnel.us/v1';
+    const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
+
+    const currentUrl = localStorage.getItem('tg_openrouter_url') || '';
+    const currentKey = localStorage.getItem('tg_openrouter_key') || '';
+
+    if (isCloud) {
+      if (!currentUrl || currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1') || currentUrl.includes('trycloudflare.com')) {
+        localStorage.setItem('tg_openrouter_url', defaultTunnel);
+      }
+      if (!currentKey || !currentKey.startsWith('sk-')) {
+        localStorage.setItem('tg_openrouter_key', defaultKey);
+      }
+    } else {
+      if (!currentUrl) localStorage.setItem('tg_openrouter_url', 'http://localhost:20128/v1');
+      if (!currentKey) localStorage.setItem('tg_openrouter_key', defaultKey);
+    }
+
+    if (!localStorage.getItem('tg_provider')) {
+      localStorage.setItem('tg_provider', 'pro');
+    }
+
     if (!inputText) {
       setInputText(
         `Không thể phủ nhận rằng trong kỷ nguyên số hiện nay, trí tuệ nhân tạo đang đóng một vai trò vô cùng quan trọng đối với sự phát triển kinh tế toàn cầu. Các giải pháp tự động hóa thông minh không chỉ giúp tối ưu hóa chi phí sản xuất mà còn nâng cao hiệu suất làm việc của người lao động một cách toàn diện. Hơn nữa, việc ứng dụng công nghệ điện toán đám mây kết hợp cùng thuật toán máy học đã mở ra một kỷ nguyên mới cho ngành quản trị kinh doanh.`
@@ -61,7 +85,7 @@ export default function App() {
     if (storedEngine === 'pro') {
       setDetectorMode('pro');
     }
-    const storedModel = localStorage.getItem('tg_openrouter_model') || 'claude';
+    const storedModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
     setActiveModel(storedModel);
   }, [isSettingsOpen]);
 
