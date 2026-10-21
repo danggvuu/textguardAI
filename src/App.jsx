@@ -248,6 +248,7 @@ export default function App() {
               detectorDomain={detectorDomain}
               setDetectorDomain={setDetectorDomain}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              onShowToast={showToast}
               t={t}
             />
           </div>

@@ -1,5 +1,20 @@
-import React, { useState } from 'react';
-import { Search, Sparkles, AlertTriangle, ShieldCheck, CheckCircle2, Award, Zap, Cpu, Sliders, Layers } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import {
+  Search,
+  Sparkles,
+  AlertTriangle,
+  ShieldCheck,
+  CheckCircle2,
+  Award,
+  Zap,
+  Cpu,
+  Sliders,
+  Layers,
+  Upload,
+  Clipboard,
+  Trash2,
+  FileText
+} from 'lucide-react';
 import GaugeMeter from './GaugeMeter';
 
 export default function DetectorView({
@@ -14,13 +29,92 @@ export default function DetectorView({
   detectorDomain = 'academic',
   setDetectorDomain,
   onOpenSettings,
+  onShowToast,
   t
 }) {
   const [selectedSentence, setSelectedSentence] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
+  const [loadedFileName, setLoadedFileName] = useState('');
+  const fileInputRef = useRef(null);
+
+  const wordCount = text.trim() ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+  const charCount = text.length;
 
   const handleRun = () => {
     if (!text.trim()) return;
     onRunDetect(text);
+  };
+
+  const handlePaste = async () => {
+    try {
+      const clipText = await navigator.clipboard.readText();
+      if (clipText) {
+        setText(clipText);
+        setLoadedFileName('');
+        onShowToast?.({ message: 'Đã dán văn bản từ bộ nhớ tạm', type: 'info' });
+      }
+    } catch {}
+  };
+
+  const handleClear = () => {
+    setText('');
+    setLoadedFileName('');
+  };
+
+  const handleFileProcess = async (file) => {
+    if (!file) return;
+    setIsFileLoading(true);
+    setLoadedFileName(file.name);
+
+    try {
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+      // Ultra-fast client-side reading for plain text & markdown
+      if (ext === '.txt' || ext === '.md') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target.result;
+          setText(content);
+          setIsFileLoading(false);
+          const count = content.trim().split(/\s+/).filter(Boolean).length;
+          onShowToast?.({ message: `Đã nhập tệp: ${file.name} (${count} từ)`, type: 'success' });
+        };
+        reader.onerror = () => {
+          setIsFileLoading(false);
+          onShowToast?.({ message: 'Không thể đọc tệp văn bản', type: 'error' });
+        };
+        reader.readAsText(file);
+        return;
+      }
+
+      // For .docx and .pdf, use serverless upload endpoint
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Lỗi khi trích xuất tệp');
+      }
+
+      if (data.text) {
+        setText(data.text);
+        onShowToast?.({
+          message: `Đã tải tệp: ${data.filename} (${data.wordCount || data.text.split(/\s+/).filter(Boolean).length} từ)`,
+          type: 'success'
+        });
+      }
+    } catch (err) {
+      console.error('File upload error:', err);
+      onShowToast?.({ message: 'Không thể đọc tệp: ' + err.message, type: 'error' });
+      setLoadedFileName('');
+    } finally {
+      setIsFileLoading(false);
+    }
   };
 
   return (
@@ -93,18 +187,93 @@ export default function DetectorView({
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 mb-8">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Nhập hoặc dán văn bản cần kiểm tra độ giống AI..."
-          className="w-full h-36 p-3 text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-[#6248ff]/20 focus:border-[#6248ff] leading-relaxed"
-        />
+      {/* Input Area with Drag-and-Drop & File Upload Support */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          if (e.dataTransfer.files?.[0]) handleFileProcess(e.dataTransfer.files[0]);
+        }}
+        className={`bg-white rounded-2xl border transition-all duration-200 shadow-xs overflow-hidden mb-8 ${
+          isDragOver ? 'border-[#6248ff] ring-2 ring-[#6248ff]/20' : 'border-slate-200'
+        }`}
+      >
+        {/* Top Toolbar */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/60 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-800">Văn bản cần kiểm tra AI</span>
+            <span className="text-[11px] text-slate-400 font-mono">({wordCount} từ)</span>
+            {loadedFileName && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-[#6248ff]/10 text-[#6248ff] border border-[#6248ff]/20">
+                <FileText className="w-3 h-3" />
+                <span className="max-w-[160px] truncate" title={loadedFileName}>{loadedFileName}</span>
+              </span>
+            )}
+          </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handlePaste}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-200/60 rounded-md transition-colors"
+              title="Dán từ Clipboard"
+            >
+              <Clipboard className="w-3.5 h-3.5 text-slate-500" />
+              <span>Dán văn bản</span>
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isFileLoading}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#6248ff] bg-[#6248ff]/10 hover:bg-[#6248ff]/20 rounded-md transition-colors disabled:opacity-50"
+              title="Tải tệp .pdf, .docx, .txt, .md"
+            >
+              <Upload className="w-3.5 h-3.5 text-[#6248ff]" />
+              <span>{isFileLoading ? 'Đang đọc...' : 'Tải tệp lên (.pdf, .docx, .txt)'}</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc,.txt,.md"
+              onChange={(e) => handleFileProcess(e.target.files?.[0])}
+              className="hidden"
+            />
+
+            {text && (
+              <button
+                onClick={handleClear}
+                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                title="Xóa nội dung"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Textarea & Loading Overlay */}
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Nhập, dán văn bản hoặc thả tệp PDF, Word (.docx), TXT vào đây để kiểm tra..."
+            className="w-full h-40 p-4 text-sm text-slate-800 placeholder-slate-400 bg-transparent resize-none outline-none leading-relaxed"
+          />
+
+          {isFileLoading && (
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
+              <div className="w-8 h-8 rounded-full border-2 border-[#6248ff] border-t-transparent animate-spin mb-2"></div>
+              <p className="text-xs font-bold text-slate-800">Đang trích xuất nội dung từ tệp...</p>
+              <p className="text-[11px] text-slate-500 font-mono mt-0.5">{loadedFileName}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/40">
           <div className="flex items-center gap-3 text-xs text-slate-500 font-medium">
-            <span>{text.trim() ? text.trim().split(/\s+/).length : 0} từ • {text.length} ký tự</span>
+            <span>{wordCount} từ • {charCount} ký tự</span>
             {detectorMode === 'pro' && (
               <span
                 onClick={onOpenSettings}

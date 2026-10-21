@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import mammoth from 'mammoth';
+import { PDFParse } from 'pdf-parse';
 import dotenv from 'dotenv';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
@@ -20,14 +21,14 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
   fileFilter: (req, file, cb) => {
-    const allowed = ['.txt', '.md', '.docx'];
+    const allowed = ['.txt', '.md', '.docx', '.pdf'];
     const ext = file.originalname.slice(file.originalname.lastIndexOf('.')).toLowerCase();
-    if (allowed.includes(ext) || file.mimetype === 'text/plain') {
+    if (allowed.includes(ext) || file.mimetype === 'text/plain' || file.mimetype === 'application/pdf') {
       cb(null, true);
     } else {
-      cb(new Error('Chỉ hỗ trợ tệp .txt, .md, hoặc .docx'));
+      cb(new Error('Chỉ hỗ trợ tệp .txt, .md, .docx hoặc .pdf'));
     }
   }
 });
@@ -363,8 +364,9 @@ app.post('/api/humanize', async (req, res) => {
   }
 });
 
-// File upload endpoint
+// File upload endpoint (supports .pdf, .docx, .txt, .md)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
+  let parser = null;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Vui lòng chọn một tệp văn bản' });
@@ -376,19 +378,38 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     if (ext === '.docx') {
       const result = await mammoth.extractRawText({ buffer });
-      extractedText = result.value;
+      extractedText = result.value || '';
+    } else if (ext === '.pdf') {
+      parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      extractedText = (result.text || '').replace(/-- \d+ of \d+ --/g, '');
     } else {
       extractedText = buffer.toString('utf-8');
     }
 
+    const trimmed = extractedText.trim();
+    if (!trimmed) {
+      return res.status(400).json({
+        error: `Tệp "${originalname}" không có văn bản hoặc chỉ chứa hình ảnh quét (scanned image). Vui lòng chọn tệp có nội dung chữ.`
+      });
+    }
+
     return res.json({
+      success: true,
       filename: originalname,
       filesize: req.file.size,
-      text: extractedText.trim()
+      wordCount: trimmed.split(/\s+/).length,
+      text: trimmed
     });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Không thể đọc tệp: ' + error.message });
+  } finally {
+    if (parser) {
+      try {
+        await parser.destroy();
+      } catch {}
+    }
   }
 });
 

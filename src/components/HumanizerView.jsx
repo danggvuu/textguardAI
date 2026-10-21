@@ -38,6 +38,8 @@ export default function HumanizerView({
   const [purpose, setPurpose] = useState('general');
   const [copied, setCopied] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isFileLoading, setIsFileLoading] = useState(false);
+  const [loadedFileName, setLoadedFileName] = useState('');
   const fileInputRef = useRef(null);
 
   // Word and character counts
@@ -71,6 +73,7 @@ export default function HumanizerView({
   // Handle Clear
   const handleClear = () => {
     setInputText('');
+    setLoadedFileName('');
   };
 
   // Handle Download (.txt)
@@ -86,24 +89,59 @@ export default function HumanizerView({
     onShowToast?.({ message: 'Đang tải xuống tệp .txt', type: 'success' });
   };
 
-  // Handle File Upload
+  // Handle File Upload (.pdf, .docx, .txt, .md)
   const handleFileProcess = async (file) => {
     if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
+    setIsFileLoading(true);
+    setLoadedFileName(file.name);
 
     try {
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+
+      // Ultra-fast client-side reading for plain text & markdown
+      if (ext === '.txt' || ext === '.md') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target.result;
+          setInputText(content);
+          setIsFileLoading(false);
+          const count = content.trim().split(/\s+/).filter(Boolean).length;
+          onShowToast?.({ message: `Đã nhập tệp: ${file.name} (${count} từ)`, type: 'success' });
+        };
+        reader.onerror = () => {
+          setIsFileLoading(false);
+          onShowToast?.({ message: 'Không thể đọc tệp văn bản', type: 'error' });
+        };
+        reader.readAsText(file);
+        return;
+      }
+
+      // For .docx and .pdf, use serverless upload endpoint
+      const formData = new FormData();
+      formData.append('file', file);
+
       const res = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       });
       const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Lỗi khi trích xuất tệp');
+      }
+
       if (data.text) {
         setInputText(data.text);
-        onShowToast?.({ message: `Đã nhập tệp: ${data.filename}`, type: 'success' });
+        onShowToast?.({
+          message: `Đã nhập tệp: ${data.filename} (${data.wordCount || data.text.split(/\s+/).filter(Boolean).length} từ)`,
+          type: 'success'
+        });
       }
     } catch (err) {
+      console.error('File upload error:', err);
       onShowToast?.({ message: 'Không thể đọc tệp: ' + err.message, type: 'error' });
+      setLoadedFileName('');
+    } finally {
+      setIsFileLoading(false);
     }
   };
 
@@ -252,9 +290,15 @@ export default function HumanizerView({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100 bg-zinc-50/60">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-zinc-800 tracking-wide">Văn bản AI gốc</span>
               <span className="text-[11px] text-zinc-400 font-mono">({inputWords} {t.words})</span>
+              {loadedFileName && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <FileText className="w-3 h-3 text-indigo-600" />
+                  <span className="max-w-[140px] truncate" title={loadedFileName}>{loadedFileName}</span>
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-1">
@@ -268,16 +312,17 @@ export default function HumanizerView({
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/60 rounded-md transition-colors"
-                title="Tải tệp .txt, .docx, .md"
+                disabled={isFileLoading}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/60 rounded-md transition-colors disabled:opacity-50"
+                title="Tải tệp .pdf, .docx, .txt, .md"
               >
                 <Upload className="w-3.5 h-3.5 text-zinc-500" />
-                <span>{t.btnUpload}</span>
+                <span>{isFileLoading ? 'Đang đọc...' : t.btnUpload}</span>
               </button>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.md,.docx"
+                accept=".pdf,.docx,.doc,.txt,.md"
                 onChange={(e) => handleFileProcess(e.target.files?.[0])}
                 className="hidden"
               />
@@ -293,14 +338,23 @@ export default function HumanizerView({
             </div>
           </div>
 
-          {/* Textarea */}
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t.inputPlaceholder}
-            className="w-full flex-1 min-h-[380px] p-4 text-sm text-zinc-800 placeholder-zinc-400 bg-transparent resize-none outline-none leading-relaxed font-normal"
-          />
+          {/* Textarea container */}
+          <div className="relative flex-1 flex flex-col">
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t.inputPlaceholder}
+              className="w-full flex-1 min-h-[380px] p-4 text-sm text-zinc-800 placeholder-zinc-400 bg-transparent resize-none outline-none leading-relaxed font-normal"
+            />
+            {isFileLoading && (
+              <div className="absolute inset-0 bg-white/90 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
+                <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mb-2"></div>
+                <p className="text-xs font-bold text-zinc-800">Đang trích xuất nội dung từ tệp...</p>
+                <p className="text-[11px] text-zinc-500 font-mono mt-0.5">{loadedFileName}</p>
+              </div>
+            )}
+          </div>
 
           {/* Footer Bar */}
           <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-100 bg-zinc-50/40 text-[11px] text-zinc-500 font-mono">

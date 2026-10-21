@@ -34,7 +34,7 @@ export const translations = {
     purposeBusiness: "Email & Báo cáo",
     purposeLegal: "Hành chính & Pháp lý",
 
-    inputPlaceholder: "Dán văn bản do AI tạo ra vào đây hoặc tải tệp lên (.txt, .docx, .md)...",
+    inputPlaceholder: "Dán văn bản do AI tạo ra vào đây hoặc tải tệp lên (.pdf, .docx, .txt, .md)...",
     outputPlaceholder: "Văn bản tự nhiên hóa sẽ xuất hiện tại đây sau khi bạn nhấn nút bên dưới...",
 
     btnPaste: "Dán văn bản",
@@ -126,7 +126,7 @@ export const translations = {
     purposeBusiness: "Business & Emails",
     purposeLegal: "Legal & Administrative",
 
-    inputPlaceholder: "Paste your AI-generated text here or upload a file (.txt, .docx, .md)...",
+    inputPlaceholder: "Paste your AI-generated text here or upload a file (.pdf, .docx, .txt, .md)...",
     outputPlaceholder: "Your humanized text will appear here once you hit the button below...",
 
     btnPaste: "Paste Text",
