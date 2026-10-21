@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 import dotenv from 'dotenv';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
@@ -366,7 +365,6 @@ app.post('/api/humanize', async (req, res) => {
 
 // File upload endpoint (supports .pdf, .docx, .txt, .md)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
-  let parser = null;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Vui lòng chọn một tệp văn bản' });
@@ -380,9 +378,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value || '';
     } else if (ext === '.pdf') {
-      parser = new PDFParse({ data: buffer });
-      const result = await parser.getText();
-      extractedText = (result.text || '').replace(/-- \d+ of \d+ --/g, '');
+      const { extractText } = await import('unpdf');
+      const { text } = await extractText(new Uint8Array(buffer), { mergePages: true });
+      extractedText = text || '';
     } else {
       extractedText = buffer.toString('utf-8');
     }
@@ -398,18 +396,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       success: true,
       filename: originalname,
       filesize: req.file.size,
-      wordCount: trimmed.split(/\s+/).length,
+      wordCount: trimmed.split(/\s+/).filter(Boolean).length,
       text: trimmed
     });
   } catch (error) {
     console.error('Upload error:', error);
     return res.status(500).json({ error: 'Không thể đọc tệp: ' + error.message });
-  } finally {
-    if (parser) {
-      try {
-        await parser.destroy();
-      } catch {}
-    }
   }
 });
 
