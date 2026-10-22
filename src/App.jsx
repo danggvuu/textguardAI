@@ -276,6 +276,7 @@ export default function App() {
               detectorDomain={detectorDomain}
               setDetectorDomain={setDetectorDomain}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              onOpenPresets={() => setIsPresetsOpen(true)}
               onShowToast={showToast}
               t={t}
             />
@@ -316,9 +317,13 @@ export default function App() {
         isOpen={isPresetsOpen}
         onClose={() => setIsPresetsOpen(false)}
         onSelectPreset={(text) => {
-          setInputText(text);
-          if (activeTab !== 'humanize') setActiveTab('humanize');
-          showToast({ message: 'Đã tải bài mẫu thử nghiệm', type: 'info' });
+          if (activeTab === 'detect') {
+            setDetectorText(text);
+            showToast({ message: 'Đã tải mẫu kiểm tra benchmark vào hệ thống giám định', type: 'info' });
+          } else {
+            setInputText(text);
+            showToast({ message: 'Đã tải bài mẫu thử nghiệm vào trình nhân bản', type: 'info' });
+          }
         }}
       />
 
