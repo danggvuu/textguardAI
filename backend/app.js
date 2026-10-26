@@ -1,30 +1,115 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import mammoth from 'mammoth';
 import dotenv from 'dotenv';
+import path from 'path';
+import { URL } from 'url';
 import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
 import { PRESET_SAMPLES } from './presets.js';
-import { resolveApiKey, getAutoDetected9RouterKey, resolve9RouterModel, DEFAULT_9ROUTER_TUNNEL, DEFAULT_9ROUTER_KEY } from './keyHelper.js';
+import {
+  resolveApiKey,
+  getAutoDetected9RouterKey,
+  resolve9RouterModel,
+  DEFAULT_9ROUTER_TUNNEL,
+  DEFAULT_9ROUTER_KEY,
+  maskApiKey
+} from './keyHelper.js';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 1. Security Headers (Helmet: Protects against XSS, clickjacking, MIME sniffing, HSTS)
+app.use(helmet({
+  contentSecurityPolicy: false, // Allows flexible modern UI loading
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
-// Configure Multer for file uploads (stored in memory)
+// 2. CORS configuration: restricts allowed methods and headers
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
+}));
+
+// 3. Body parsers with sensible limits to prevent payload DoS
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+// 4. Rate Limiting (Prevents API abuse, DDoS, and key exhaustion)
+const globalApiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120, // 120 requests per min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Quá nhiều yêu cầu từ địa chỉ IP của bạn. Vui lòng thử lại sau 1 phút.' }
+});
+
+const heavyProcessingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30, // 30 requests per min for resource-intensive LLM/upload tasks
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Thao tác xử lý quá nhanh. Vui lòng đợi vài giây trước khi thực hiện tiếp.' }
+});
+
+app.use('/api/', globalApiLimiter);
+app.use('/api/humanize', heavyProcessingLimiter);
+app.use('/api/upload', heavyProcessingLimiter);
+
+/**
+ * SSRF & Hostname Guard:
+ * Blocks access to cloud metadata (169.254.169.254), internal private LANs,
+ * non-HTTP protocols, and loopbacks when running in production/cloud.
+ */
+function isSafeUrl(rawUrl, isCloud) {
+  if (!rawUrl || typeof rawUrl !== 'string') return false;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Check for dangerous cloud metadata & private loopback IP addresses
+    const isPrivateOrLoopback =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.local') ||
+      hostname === '169.254.169.254' ||
+      hostname === 'metadata.google.internal' ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+    if (isCloud && isPrivateOrLoopback) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 5. Configure Multer for secure file uploads (stored in memory, 5MB limit, sanitized)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5MB limit to prevent memory exhaustion
   fileFilter: (req, file, cb) => {
     const allowed = ['.txt', '.md', '.docx', '.pdf'];
-    const ext = file.originalname.slice(file.originalname.lastIndexOf('.')).toLowerCase();
-    if (allowed.includes(ext) || file.mimetype === 'text/plain' || file.mimetype === 'application/pdf') {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext) || file.mimetype === 'text/plain' || file.mimetype === 'application/pdf' || file.mimetype.includes('wordprocessingml')) {
       cb(null, true);
     } else {
       cb(new Error('Chỉ hỗ trợ tệp .txt, .md, .docx hoặc .pdf'));
@@ -37,8 +122,9 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'TextGuard AI Humanizer API',
-    version: '2.3.0',
+    version: '2.4.0',
     engine: 'Cloudflare AI + 9Router + Multi-Stage Forensic NLP',
+    security: 'Helmet + RateLimit + SSRF Guard + Zero-Exposure Masking Active',
     time: new Date()
   });
 });
@@ -57,6 +143,12 @@ app.post('/api/models', async (req, res) => {
     if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
       baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
     }
+
+    // SSRF Guard
+    if (!isSafeUrl(baseUrl, isCloud)) {
+      return res.status(400).json({ error: 'Địa chỉ Base URL không hợp lệ hoặc vi phạm chính sách bảo mật SSRF' });
+    }
+
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const modelsEndpoint = cleanUrl.endsWith('/models') ? cleanUrl : `${cleanUrl}/models`;
 
@@ -80,19 +172,18 @@ app.post('/api/models', async (req, res) => {
       const errText = await response.text();
       return res.status(response.status).json({
         error: `Không thể lấy danh sách model (${response.status}): ${errText}`,
-        detectedKey: getAutoDetected9RouterKey()
+        maskedKey: maskApiKey(effectiveKey),
+        isConfigured: Boolean(effectiveKey)
       });
     }
 
     const data = await response.json();
     const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
 
-    // 1. Separate top combos (the primary models configured in 9Router)
     const comboIds = ['open', 'claude', 'gehihi'];
     const combos = [];
     const regularModels = [];
 
-    // List of models tested & verified working 100% on this machine across all providers
     const VERIFIED_MODELS = [
       'kr/claude-sonnet-4.5',
       'kr/claude-haiku-4.5',
@@ -119,7 +210,6 @@ app.post('/api/models', async (req, res) => {
 
       const isCombo = item.owned_by === 'combo' || comboIds.includes(id);
       
-      // Determine brand/category
       let category = 'other';
       const lower = id.toLowerCase();
       if (isCombo) {
@@ -148,7 +238,6 @@ app.post('/api/models', async (req, res) => {
       if (isCombo) {
         combos.push(formatted);
       } else {
-        // Filter out internal sub-endpoints unless explicitly requested
         if (!includeInternal) {
           if (id.includes('~') || id.includes(':batch') || id.includes('[1m]')) return;
           if (/embed|moderation|tts|whisper|dall-e|flux|sdxl|rerank|clip/i.test(id)) return;
@@ -158,7 +247,6 @@ app.post('/api/models', async (req, res) => {
       }
     });
 
-    // Combos first (gehihi top), then verified models, then regular models
     combos.sort((a, b) => (b.id === 'gehihi' ? 1 : 0) - (a.id === 'gehihi' ? 1 : 0));
     regularModels.sort((a, b) => (b.isVerified ? 1 : 0) - (a.isVerified ? 1 : 0));
 
@@ -169,13 +257,14 @@ app.post('/api/models', async (req, res) => {
       count: sorted.length,
       combos,
       models: sorted,
-      detectedKey: getAutoDetected9RouterKey()
+      maskedKey: maskApiKey(effectiveKey),
+      isConfigured: Boolean(effectiveKey)
     });
   } catch (error) {
     console.error('Fetch models error:', error);
     return res.status(500).json({
       error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`,
-      detectedKey: getAutoDetected9RouterKey()
+      isConfigured: false
     });
   }
 });
@@ -190,6 +279,12 @@ app.post('/api/models/test', async (req, res) => {
     if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
       baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
     }
+
+    // SSRF Guard
+    if (!isSafeUrl(baseUrl, isCloud)) {
+      return res.status(400).json({ error: 'Địa chỉ Base URL không hợp lệ hoặc vi phạm chính sách bảo mật SSRF' });
+    }
+
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const chatEndpoint = cleanUrl.endsWith('/chat/completions') ? cleanUrl : `${cleanUrl}/chat/completions`;
 
@@ -242,7 +337,6 @@ app.post('/api/models/test', async (req, res) => {
       });
     }
 
-    // Try parsing JSON or SSE fallback
     let reply = 'OK';
     try {
       const data = JSON.parse(responseText);
@@ -270,7 +364,8 @@ app.post('/api/models/test', async (req, res) => {
       model: effectiveModel,
       latencyMs,
       reply: reply || 'OK',
-      detectedKey: effectiveKey
+      maskedKey: maskApiKey(effectiveKey),
+      isConfigured: Boolean(effectiveKey)
     });
   } catch (error) {
     return res.status(500).json({
@@ -296,6 +391,14 @@ app.post('/api/detect', async (req, res) => {
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Văn bản không được để trống' });
+    }
+
+    if (text.length > 150000) {
+      return res.status(400).json({ error: 'Độ dài văn bản vượt quá giới hạn tối đa (150,000 ký tự).' });
+    }
+
+    if (openRouterBaseUrl && !isSafeUrl(openRouterBaseUrl, isCloud)) {
+      openRouterBaseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
     }
 
     if (!openRouterBaseUrl || (isCloud && (openRouterBaseUrl.includes('localhost') || openRouterBaseUrl.includes('127.0.0.1')))) {
@@ -340,6 +443,14 @@ app.post('/api/humanize', async (req, res) => {
       return res.status(400).json({ error: 'Văn bản cần xử lý không được để trống' });
     }
 
+    if (text.length > 150000) {
+      return res.status(400).json({ error: 'Độ dài văn bản vượt quá giới hạn tối đa (150,000 ký tự).' });
+    }
+
+    if (baseUrl && !isSafeUrl(baseUrl, isCloud)) {
+      baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
+    }
+
     if (!baseUrl || (isCloud && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')))) {
       baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
     }
@@ -350,10 +461,8 @@ app.post('/api/humanize', async (req, res) => {
     let humanizedText = '';
     let engineUsed = 'local-nlp';
 
-    // 1. Resolve key (auto-detects local 9Router key if on localhost)
     const effectiveKey = resolveApiKey(apiKey, baseUrl) || DEFAULT_9ROUTER_KEY;
 
-    // Try LLM if provider is not free
     if (provider !== 'free') {
       try {
         humanizedText = await humanizeWithLLM(
@@ -368,12 +477,10 @@ app.post('/api/humanize', async (req, res) => {
         engineUsed = 'local-nlp-fallback';
       }
     } else {
-      // 2. High-precision Built-in local NLP engine
       humanizedText = humanizeLocal(text, { strength, readability, purpose });
       engineUsed = 'local-nlp';
     }
 
-    // 3. Compute stats for before & after
     const beforeStats = await detectAIText(text);
     const afterStats = await detectAIText(humanizedText);
 
@@ -395,7 +502,7 @@ app.post('/api/humanize', async (req, res) => {
   }
 });
 
-// File upload endpoint (supports .pdf, .docx, .txt, .md)
+// File upload endpoint (supports .pdf, .docx, .txt, .md with sanitize & length limits)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -403,7 +510,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
 
     const { originalname, buffer } = req.file;
-    const ext = originalname.slice(originalname.lastIndexOf('.')).toLowerCase();
+    // Sanitize filename against directory traversal and control characters
+    const safeFilename = path.basename(originalname).replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F\u1E00-\u1EFF]/g, '_');
+    const ext = path.extname(safeFilename).toLowerCase();
     let extractedText = '';
 
     if (ext === '.docx') {
@@ -417,16 +526,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       extractedText = buffer.toString('utf-8');
     }
 
+    // Limit text length to 300,000 characters to prevent memory exhaustion / ReDoS
+    if (extractedText.length > 300000) {
+      extractedText = extractedText.slice(0, 300000);
+    }
+
     const trimmed = extractedText.trim();
     if (!trimmed) {
       return res.status(400).json({
-        error: `Tệp "${originalname}" không có văn bản hoặc chỉ chứa hình ảnh quét (scanned image). Vui lòng chọn tệp có nội dung chữ.`
+        error: `Tệp "${safeFilename}" không có văn bản hoặc chỉ chứa hình ảnh quét (scanned image). Vui lòng chọn tệp có nội dung chữ.`
       });
     }
 
     return res.json({
       success: true,
-      filename: originalname,
+      filename: safeFilename,
       filesize: req.file.size,
       wordCount: trimmed.split(/\s+/).filter(Boolean).length,
       text: trimmed

@@ -89,19 +89,16 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       });
 
       const data = await res.json();
-      if (data.detectedKey) {
-        setDetectedKey(data.detectedKey);
-        if (!key && !openRouterKey) {
-          setOpenRouterKey(data.detectedKey);
-          localStorage.setItem('tg_openrouter_key', data.detectedKey);
-        }
+      const keyDisplay = data.maskedKey || (data.detectedKey ? data.detectedKey.slice(0, 8) + '...' : 'Sẵn sàng');
+      if (data.isConfigured || data.detectedKey) {
+        setDetectedKey(data.maskedKey || 'sk-••••••••');
       }
 
       if (data.models && data.models.length > 0) {
         setModels(data.models);
         setCombos(data.combos || []);
         setScanMessage({
-          text: `Đã lọc ${data.count} models từ 9Router! (Tự động nhận diện Key: ${data.detectedKey ? data.detectedKey.slice(0, 10) + '...' : 'OK'})`,
+          text: `Đã lọc ${data.count} models từ 9Router! (Key: ${keyDisplay})`,
           type: 'success'
         });
 

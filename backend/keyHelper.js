@@ -1,6 +1,7 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 
 let cachedKey = null;
 
@@ -15,22 +16,38 @@ export const CLOUD_AI_CONFIG = {
 };
 
 /**
+ * Mask API keys to prevent credential leakage in HTTP responses/logs
+ */
+export function maskApiKey(key) {
+  if (!key || typeof key !== 'string') return '';
+  const trimmed = key.trim();
+  if (trimmed.length <= 10) return 'sk-****';
+  return `${trimmed.slice(0, 7)}...${trimmed.slice(-4)}`;
+}
+
+/**
  * Auto-detect the local 9Router API Key directly from ~/.9router/db/data.sqlite
+ * Uses execFileSync with parameterized arguments to prevent shell injection vulnerabilities
  */
 export function getAutoDetected9RouterKey() {
   if (cachedKey) return cachedKey;
   try {
     const dbPath = path.join(os.homedir(), '.9router', 'db', 'data.sqlite');
-    const key = execSync(`sqlite3 "${dbPath}" "SELECT key FROM apiKeys WHERE isActive=1 LIMIT 1;" 2>/dev/null`)
-      .toString().trim();
-    if (key && key.startsWith('sk-')) {
-      cachedKey = key;
-      return key;
+    if (fs.existsSync(dbPath)) {
+      const output = execFileSync(
+        'sqlite3',
+        [dbPath, 'SELECT key FROM apiKeys WHERE isActive=1 LIMIT 1;'],
+        { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }
+      ).trim();
+      if (output && output.startsWith('sk-')) {
+        cachedKey = output;
+        return output;
+      }
     }
   } catch (err) {
     // fallback
   }
-  return 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
+  return process.env.NINE_ROUTER_KEY || 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
 }
 
 export const DEFAULT_9ROUTER_TUNNEL = 'https://r74fefq.abc-tunnel.us/v1';
