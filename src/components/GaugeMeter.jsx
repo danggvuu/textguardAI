@@ -1,4 +1,6 @@
 import React from 'react';
+import { motion } from 'motion/react';
+import { CountingNumber } from '@animate-ui/react/primitives/texts/counting-number';
 
 export default function GaugeMeter({ score = 100, label = 'Điểm người viết', type = 'human', size = 130 }) {
   // Score is 0 - 100
@@ -29,8 +31,8 @@ export default function GaugeMeter({ score = 100, label = 'Điểm người vi�
             strokeWidth="12"
             strokeLinecap="round"
           />
-          {/* Progress Arc */}
-          <circle
+          {/* Animated Progress Arc */}
+          <motion.circle
             cx="60"
             cy="60"
             r={radius}
@@ -38,16 +40,18 @@ export default function GaugeMeter({ score = 100, label = 'Điểm người vi�
             stroke={strokeColor}
             strokeWidth="12"
             strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
             strokeLinecap="round"
-            className="transition-all duration-1000 ease-out"
           />
         </svg>
 
-        {/* Center Text */}
+        {/* Center Text with Animate UI CountingNumber */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-2xl font-extrabold tracking-tight text-[#101828]">
-            {score}%
+          <span className="text-2xl font-extrabold tracking-tight text-[#101828] inline-flex items-center">
+            <CountingNumber number={score} fromNumber={0} duration={0.9} />
+            <span>%</span>
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
             {type === 'human' ? 'Con người' : 'AI'}

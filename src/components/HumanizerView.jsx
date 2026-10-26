@@ -16,6 +16,10 @@ import {
   CornerDownLeft,
   FileText
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { CountingNumber } from '@animate-ui/react/primitives/texts/counting-number';
+import { Shine } from '@animate-ui/react/primitives/effects/shine';
+import { Button as AnimateButton } from '@animate-ui/react/primitives/buttons/button';
 
 export default function HumanizerView({
   inputText,
@@ -374,8 +378,8 @@ export default function HumanizerView({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-zinc-800 tracking-wide">Văn bản tự nhiên hóa</span>
               {afterStats && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800">
-                  ★ {afterStats.humanScore}% {t.humanScore}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  ★ <CountingNumber number={afterStats.humanScore} fromNumber={0} />% {t.humanScore}
                 </span>
               )}
             </div>
@@ -430,23 +434,31 @@ export default function HumanizerView({
             />
 
             {/* Scanning / Processing State Animation */}
-            {isProcessing && (
-              <div className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-20">
-                <div className="relative w-16 h-16 mb-4">
-                  <div className="w-16 h-16 rounded-full border-3 border-zinc-100 border-t-indigo-600 animate-spin"></div>
-                  <Sparkles className="w-6 h-6 text-indigo-600 absolute inset-0 m-auto animate-pulse" />
-                </div>
-                <h4 className="font-extrabold text-sm text-zinc-900 mb-1">
-                  Đang nhân bản hóa văn bản...
-                </h4>
-                <p className="text-xs text-indigo-600 font-semibold max-w-sm">
-                  {processingStage || t.stages[0]}
-                </p>
-                <div className="w-48 bg-zinc-100 h-1.5 rounded-full mt-4 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 animate-pulse"></div>
-                </div>
-              </div>
-            )}
+            <AnimatePresence>
+              {isProcessing && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-20"
+                >
+                  <div className="relative w-16 h-16 mb-4">
+                    <div className="w-16 h-16 rounded-full border-3 border-zinc-100 border-t-indigo-600 animate-spin"></div>
+                    <Sparkles className="w-6 h-6 text-indigo-600 absolute inset-0 m-auto animate-pulse" />
+                  </div>
+                  <h4 className="font-extrabold text-sm text-zinc-900 mb-1">
+                    Đang nhân bản hóa văn bản...
+                  </h4>
+                  <p className="text-xs text-indigo-600 font-semibold max-w-sm">
+                    {processingStage || t.stages[0]}
+                  </p>
+                  <div className="w-48 bg-zinc-100 h-1.5 rounded-full mt-4 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 animate-pulse"></div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Footer Bar */}
@@ -466,24 +478,29 @@ export default function HumanizerView({
         </div>
       </div>
 
-      {/* Primary Action Button (Shadcn aesthetic) */}
+      {/* Primary Action Button with Animate UI Spring & Shine */}
       <div className="mt-6 flex flex-col items-center justify-center">
-        <button
-          onClick={handleStartHumanize}
-          disabled={!inputText.trim() || isProcessing}
-          className={`flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl font-bold text-sm text-white shadow-md transition-all active:scale-[0.98] ${
-            !inputText.trim() || isProcessing
-              ? 'bg-zinc-300 cursor-not-allowed shadow-none'
-              : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>{isProcessing ? t.btnProcessing : t.btnHumanize}</span>
-          <div className="hidden sm:inline-flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
-            <CornerDownLeft className="w-3 h-3" />
-            <span>Enter</span>
-          </div>
-        </button>
+        <AnimateButton asChild hoverScale={1.02} tapScale={0.98}>
+          <button
+            onClick={handleStartHumanize}
+            disabled={!inputText.trim() || isProcessing}
+            className={`relative overflow-hidden flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-xl font-bold text-sm text-white shadow-md transition-all ${
+              !inputText.trim() || isProcessing
+                ? 'bg-zinc-300 cursor-not-allowed shadow-none'
+                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30'
+            }`}
+          >
+            {!isProcessing && inputText.trim() && (
+              <Shine loop loopDelay={3} duration={2.2} opacity={0.35} />
+            )}
+            <Sparkles className="w-4 h-4" />
+            <span>{isProcessing ? t.btnProcessing : t.btnHumanize}</span>
+            <div className="hidden sm:inline-flex items-center gap-0.5 ml-2 px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono">
+              <CornerDownLeft className="w-3 h-3" />
+              <span>Enter</span>
+            </div>
+          </button>
+        </AnimateButton>
 
         <p className="mt-2.5 text-[11px] text-zinc-500 font-medium">
           🔒 Quyền riêng tư đảm bảo • Không lưu trữ hay huấn luyện văn bản của bạn

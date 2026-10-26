@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   Filter
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Button as AnimateButton } from '@animate-ui/react/primitives/buttons/button';
 
 export default function SettingsModal({ isOpen, onClose, t }) {
   const [provider, setProvider] = useState('free');
@@ -182,11 +184,26 @@ export default function SettingsModal({ isOpen, onClose, t }) {
     return m.category === selectedCategory;
   });
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[92vh]"
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 bg-zinc-50/80 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -743,22 +760,26 @@ export default function SettingsModal({ isOpen, onClose, t }) {
             >
               Đóng
             </button>
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-            >
-              {saved ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Đã lưu!</span>
-                </>
-              ) : (
-                <span>Lưu cấu hình</span>
-              )}
-            </button>
+            <AnimateButton asChild hoverScale={1.03} tapScale={0.97}>
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                {saved ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Đã lưu!</span>
+                  </>
+                ) : (
+                  <span>Lưu cấu hình</span>
+                )}
+              </button>
+            </AnimateButton>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+);
 }

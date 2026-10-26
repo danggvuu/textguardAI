@@ -1,5 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Sparkles, Sliders, Globe, Layers, Search, FileText, Zap, Cpu } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Button } from '@animate-ui/react/primitives/buttons/button';
 
 export default function Header({
   activeTab,
@@ -12,6 +14,12 @@ export default function Header({
   activeModel = 'claude',
   t
 }) {
+  const tabs = [
+    { id: 'humanize', label: t.navHumanizer, icon: Sparkles },
+    { id: 'detect', label: t.navDetector, icon: Search },
+    { id: 'diff', label: t.navDiff, icon: Layers },
+  ];
+
   return (
     <header className="w-full border-b border-zinc-200/80 bg-white/85 backdrop-blur-md sticky top-0 z-40">
       {/* Top micro announcement bar */}
@@ -50,43 +58,31 @@ export default function Header({
             </div>
           </div>
 
-          {/* Center Tabs: Shadcn Segmented Control */}
-          <nav className="hidden md:flex items-center bg-zinc-100/90 p-1 rounded-xl border border-zinc-200/70">
-            <button
-              onClick={() => setActiveTab('humanize')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                activeTab === 'humanize'
-                  ? 'bg-white text-zinc-950 shadow-xs font-bold'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/40'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              <span>{t.navHumanizer}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('detect')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                activeTab === 'detect'
-                  ? 'bg-white text-zinc-950 shadow-xs font-bold'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/40'
-              }`}
-            >
-              <Search className="w-3.5 h-3.5 text-indigo-600" />
-              <span>{t.navDetector}</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('diff')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                activeTab === 'diff'
-                  ? 'bg-white text-zinc-950 shadow-xs font-bold'
-                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/40'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-indigo-600" />
-              <span>{t.navDiff}</span>
-            </button>
+          {/* Center Tabs: Animate UI Sliding Indicator */}
+          <nav className="hidden md:flex items-center bg-zinc-100/90 p-1 rounded-xl border border-zinc-200/70 relative">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 z-10 ${
+                    isActive ? 'text-zinc-950 font-bold' : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeHeaderTab"
+                      className="absolute inset-0 bg-white rounded-lg shadow-xs -z-10"
+                      transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                    />
+                  )}
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-600' : 'text-zinc-500'}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
 
             <button
               onClick={onOpenPresets}
@@ -125,7 +121,7 @@ export default function Header({
             {/* Language Switch */}
             <button
               onClick={() => setLang(lang === 'vi' ? 'en' : 'vi')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors shadow-2xs"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors shadow-2xs active:scale-95"
             >
               <Globe className="w-3.5 h-3.5 text-zinc-500" />
               <span>{lang === 'vi' ? '🇻🇳 VI' : '🇬🇧 EN'}</span>
@@ -134,7 +130,7 @@ export default function Header({
             {/* Settings Dialog trigger */}
             <button
               onClick={onOpenSettings}
-              className="flex items-center justify-center p-2 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors shadow-2xs"
+              className="flex items-center justify-center p-2 rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors shadow-2xs active:scale-95"
               title="Cài đặt Model & API Key"
             >
               <Sliders className="w-4 h-4 text-zinc-600" />

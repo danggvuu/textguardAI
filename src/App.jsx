@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'motion/react';
 import Header from './components/Header';
 import HeroBanner from './components/HeroBanner';
 import HumanizerView from './components/HumanizerView';
@@ -333,7 +334,9 @@ export default function App() {
         t={t}
       />
 
-      <Toast toast={toast} onClose={() => setToast(null)} />
+      <AnimatePresence>
+        {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

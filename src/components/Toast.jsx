@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function Toast({ toast, onClose }) {
   if (!toast) return null;
@@ -25,7 +26,13 @@ export default function Toast({ toast, onClose }) {
   }[type] || 'text-emerald-400';
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 15, scale: 0.95 }}
+      transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+      className="fixed bottom-6 right-6 z-50"
+    >
       <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl ${bgStyles} min-w-[280px] max-w-md`}>
         <Icon className={`w-4 h-4 shrink-0 ${iconColors}`} />
         <span className="text-xs font-medium flex-1">{message}</span>
@@ -36,6 +43,6 @@ export default function Toast({ toast, onClose }) {
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
-    </div>
+    </motion.div>
   );
 }
