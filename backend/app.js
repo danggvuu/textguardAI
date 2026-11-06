@@ -208,6 +208,20 @@ function isSafeUrl(rawUrl, isCloud) {
   }
 }
 
+/**
+ * Sanitize error messages:
+ * Strips HTML tags, redacts secret patterns, and truncates to avoid leaking gateway traces or proxy pages.
+ */
+function sanitizeErrorMessage(rawText, maxLength = 300) {
+  if (!rawText || typeof rawText !== 'string') return '';
+  let cleaned = rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  cleaned = cleaned.replace(/sk-[a-zA-Z0-9_\-]{8,}/g, 'sk-****');
+  if (cleaned.length > maxLength) {
+    return cleaned.slice(0, maxLength) + '...';
+  }
+  return cleaned;
+}
+
 // 5. Configure Multer for secure file uploads (stored in memory, 5MB limit, sanitized)
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -278,7 +292,7 @@ app.post('/api/models', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       return res.status(response.status).json({
-        error: `Không thể lấy danh sách model (${response.status}): ${errText}`,
+        error: `Không thể lấy danh sách model (${response.status}): ${sanitizeErrorMessage(errText)}`,
         maskedKey: maskApiKey(effectiveKey),
         isConfigured: Boolean(effectiveKey)
       });
@@ -370,7 +384,7 @@ app.post('/api/models', async (req, res) => {
   } catch (error) {
     console.error('Fetch models error:', error);
     return res.status(500).json({
-      error: `Lỗi kết nối tới Endpoint: ${error.message}. Vui lòng kiểm tra địa chỉ Base URL.`,
+      error: `Lỗi kết nối tới Endpoint: ${sanitizeErrorMessage(error.message)}. Vui lòng kiểm tra địa chỉ Base URL.`,
       isConfigured: false
     });
   }
@@ -433,7 +447,7 @@ app.post('/api/models/test', async (req, res) => {
       return res.status(response.status).json({
         success: false,
         latencyMs,
-        error: `Model "${effectiveModel}" trả về lỗi (${response.status}): ${responseText}`,
+        error: `Model "${effectiveModel}" trả về lỗi (${response.status}): ${sanitizeErrorMessage(responseText)}`,
         tip: friendlyTip
       });
     }
@@ -472,7 +486,7 @@ app.post('/api/models/test', async (req, res) => {
     return res.status(500).json({
       success: false,
       latencyMs: Date.now() - startTime,
-      error: `Không thể kết nối tới Model: ${error.message}`
+      error: `Không thể kết nối tới Model: ${sanitizeErrorMessage(error.message)}`
     });
   }
 });
