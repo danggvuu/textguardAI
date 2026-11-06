@@ -23,16 +23,51 @@ dotenv.config();
 
 const app = express();
 
+// Disable x-powered-by to prevent framework fingerprinting
+app.disable('x-powered-by');
+
 // 1. Security Headers (Helmet: Protects against XSS, clickjacking, MIME sniffing, HSTS)
 app.use(helmet({
   contentSecurityPolicy: false, // Allows flexible modern UI loading
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: 'sameorigin' },
+  hidePoweredBy: true,
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  ieNoOpen: true,
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true
 }));
 
-// 2. CORS configuration: restricts allowed methods and headers
+// 2. Strict CORS Configuration:
+// Blocks untrusted 3rd-party websites from making cross-origin requests on user's behalf
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : [
+      'https://textguard-ai.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:5173'
+    ];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow server-to-server, mobile requests or tools with no browser Origin header
+    if (!origin) return callback(null, true);
+    // Allow verified domain or Vercel preview environments
+    if (
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/.*\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Chính sách bảo mật CORS: Tên miền không được cấp quyền truy cập.'));
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400
@@ -64,35 +99,107 @@ app.use('/api/humanize', heavyProcessingLimiter);
 app.use('/api/upload', heavyProcessingLimiter);
 
 /**
- * SSRF & Hostname Guard:
- * Blocks access to cloud metadata (169.254.169.254), internal private LANs,
- * non-HTTP protocols, and loopbacks when running in production/cloud.
+ * Robust SSRF & Hostname Guard:
+ * Blocks cloud metadata (169.254.169.254, metadata.google.internal),
+ * internal loopbacks (127.0.0.0/8, ::1, IPv4-mapped IPv6), RFC 1918 private subnets,
+ * and dangerous ports (e.g. 22, 25, 6379, 27017).
  */
 function isSafeUrl(rawUrl, isCloud) {
   if (!rawUrl || typeof rawUrl !== 'string') return false;
   try {
     const parsed = new URL(rawUrl);
+
+    // Protocol check
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
 
-    const hostname = parsed.hostname.toLowerCase();
+    // Reject userinfo/credentials in URL
+    if (parsed.username || parsed.password) return false;
 
-    // Check for dangerous cloud metadata & private loopback IP addresses
-    const isPrivateOrLoopback =
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '0.0.0.0' ||
-      hostname.endsWith('.localhost') ||
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local') ||
-      hostname === '169.254.169.254' ||
+    // Port check: only permit standard HTTP/HTTPS or 9Router default port
+    if (parsed.port) {
+      const portNum = parseInt(parsed.port, 10);
+      const safePorts = [80, 443, 8080, 8443, 20128];
+      if (!safePorts.includes(portNum)) return false;
+    }
+
+    let hostname = parsed.hostname.toLowerCase().trim();
+    if (!hostname) return false;
+
+    // Remove IPv6 brackets if present
+    let rawHost = hostname;
+    if (rawHost.startsWith('[') && rawHost.endsWith(']')) {
+      rawHost = rawHost.slice(1, -1);
+    }
+
+    // Unpack IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1 or ::ffff:7f00:1)
+    if (rawHost.startsWith('::ffff:')) {
+      const rest = rawHost.slice(7);
+      const hexParts = rest.split(':');
+      if (hexParts.length === 2 && !rest.includes('.')) {
+        const p1 = parseInt(hexParts[0], 16);
+        const p2 = parseInt(hexParts[1], 16);
+        if (!isNaN(p1) && !isNaN(p2)) {
+          rawHost = `${(p1 >> 8) & 0xff}.${p1 & 0xff}.${(p2 >> 8) & 0xff}.${p2 & 0xff}`;
+        }
+      } else {
+        rawHost = rest;
+      }
+    }
+
+    // Check dotted IPv4
+    const ipParts = rawHost.split('.');
+    const isDottedIpv4 = ipParts.length === 4 && ipParts.every(p => {
+      const n = Number(p);
+      return !isNaN(n) && n >= 0 && n <= 255 && String(n) === p;
+    });
+
+    if (isDottedIpv4) {
+      const [b0, b1] = [Number(ipParts[0]), Number(ipParts[1])];
+
+      // ALWAYS BLOCK Cloud Metadata (169.254.x.x) and 0.0.0.0/8
+      if (b0 === 169 && b1 === 254) return false;
+      if (b0 === 0) return false;
+      if (b0 === 100 && b1 === 100) return false; // Alibaba cloud metadata (100.100.100.200)
+      if (b0 >= 224) return false; // Multicast & Reserved
+
+      // In Cloud / Production: Block all private RFC 1918 & Loopback
+      if (isCloud) {
+        if (b0 === 127) return false; // 127.0.0.0/8
+        if (b0 === 10) return false; // 10.0.0.0/8
+        if (b0 === 172 && b1 >= 16 && b1 <= 31) return false; // 172.16.0.0/12
+        if (b0 === 192 && b1 === 168) return false; // 192.168.0.0/16
+        if (b0 === 100 && b1 >= 64 && b1 <= 127) return false; // CGNAT 100.64.0.0/10
+      }
+      return true;
+    }
+
+    // IPv6 checks
+    if (rawHost === '::1' || rawHost === '0:0:0:0:0:0:0:1') return !isCloud;
+    if (rawHost === '::' || rawHost === '0:0:0:0:0:0:0:0') return false;
+    if (rawHost.startsWith('fe80:')) return false; // IPv6 link-local
+    if (rawHost.startsWith('fc') || rawHost.startsWith('fd')) return !isCloud; // IPv6 ULA
+
+    // Metadata hostnames
+    if (
       hostname === 'metadata.google.internal' ||
-      /^10\./.test(hostname) ||
-      /^192\.168\./.test(hostname) ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
-
-    if (isCloud && isPrivateOrLoopback) {
+      hostname === 'instance-data' ||
+      hostname === 'metadata.internal' ||
+      hostname.includes('169.254')
+    ) {
       return false;
+    }
+
+    if (isCloud) {
+      if (
+        hostname === 'localhost' ||
+        hostname.endsWith('.localhost') ||
+        hostname.endsWith('.internal') ||
+        hostname.endsWith('.local') ||
+        hostname.endsWith('.lan') ||
+        hostname.endsWith('.home')
+      ) {
+        return false;
+      }
     }
 
     return true;
@@ -122,9 +229,9 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'TextGuard AI Humanizer API',
-    version: '2.4.0',
+    version: '2.5.0',
     engine: 'Cloudflare AI + 9Router + Multi-Stage Forensic NLP',
-    security: 'Helmet + RateLimit + SSRF Guard + Zero-Exposure Masking Active',
+    security: 'Helmet + RateLimit + Strict CORS + Hardened SSRF Guard + Secret Sanitization',
     time: new Date()
   });
 });
@@ -318,15 +425,9 @@ app.post('/api/models/test', async (req, res) => {
     if (!response.ok) {
       let friendlyTip = '';
       if (responseText.includes('RESOURCE_EXHAUSTED') || responseText.includes('429') || responseText.includes('quota')) {
-        friendlyTip = '💡 Tip: Toàn bộ 4 key Gemini trên 9Router của bạn đều đã vượt quá giới hạn lượt dùng trong ngày (429 Quota Exceeded). Hãy chọn "kr/claude-sonnet-4.5" (Kiro) hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast" (Cloudflare) đang Active 100%!';
+        friendlyTip = '💡 Tip: Quota trên provider đã vượt giới hạn. Hãy chọn "kr/claude-sonnet-4.5" hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast" đang hoạt động!';
       } else if (responseText.includes('Missing Authentication header') || responseText.includes('401')) {
-        friendlyTip = '💡 Tip: Model này chưa được cấp Authorization Header hợp lệ trên upstream provider trong 9Router. Hãy chọn "kr/claude-sonnet-4.5" hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast"!';
-      } else if (responseText.includes('Cursor AgentService') || responseText.includes('empty turn')) {
-        friendlyTip = '💡 Tip: Model này định tuyến qua Cursor Agent. Bạn có thể chọn "kr/claude-sonnet-4.5" hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast" để chạy mượt 100%!';
-      } else if (responseText.includes('not licensed to use Copilot') || responseText.includes('Copilot')) {
-        friendlyTip = '💡 Tip: Tài khoản GitHub Copilot trên máy chưa kích hoạt license. Hãy chọn "kr/claude-sonnet-4.5" (Kiro) hoặc "cf/@cf/meta/llama-3.3-70b-instruct-fp8-fast"!';
-      } else if (responseText.includes('Paid Model - Credits Required') || responseText.includes('402')) {
-        friendlyTip = '💡 Tip: Model này trên provider đã hết credits. Hãy chuyển sang "kr/claude-sonnet-4.5" (Kiro) hoàn toàn miễn phí!';
+        friendlyTip = '💡 Tip: Model chưa được cấp Authorization Header hợp lệ. Hãy kiểm tra lại API Key!';
       }
 
       return res.status(response.status).json({
@@ -397,6 +498,10 @@ app.post('/api/detect', async (req, res) => {
       return res.status(400).json({ error: 'Độ dài văn bản vượt quá giới hạn tối đa (150,000 ký tự).' });
     }
 
+    // Input whitelisting
+    if (tier !== 'free' && tier !== 'pro') tier = 'free';
+    if (domain !== 'academic' && domain !== 'general') domain = 'academic';
+
     if (openRouterBaseUrl && !isSafeUrl(openRouterBaseUrl, isCloud)) {
       openRouterBaseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';
     }
@@ -446,6 +551,17 @@ app.post('/api/humanize', async (req, res) => {
     if (text.length > 150000) {
       return res.status(400).json({ error: 'Độ dài văn bản vượt quá giới hạn tối đa (150,000 ký tự).' });
     }
+
+    // Input Enum Whitelisting against prompt/logic injection
+    const ALLOWED_STRENGTHS = ['mild', 'balanced', 'aggressive'];
+    const ALLOWED_READABILITIES = ['high_school', 'college', 'postgraduate'];
+    const ALLOWED_PURPOSES = ['general', 'academic', 'marketing', 'story', 'business', 'legal'];
+    const ALLOWED_PROVIDERS = ['free', 'pro', 'openrouter', 'openai', 'gemini'];
+
+    if (!ALLOWED_STRENGTHS.includes(strength)) strength = 'balanced';
+    if (!ALLOWED_READABILITIES.includes(readability)) readability = 'college';
+    if (!ALLOWED_PURPOSES.includes(purpose)) purpose = 'general';
+    if (!ALLOWED_PROVIDERS.includes(provider)) provider = 'pro';
 
     if (baseUrl && !isSafeUrl(baseUrl, isCloud)) {
       baseUrl = isCloud ? DEFAULT_9ROUTER_TUNNEL : 'http://localhost:20128/v1';

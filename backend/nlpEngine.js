@@ -299,9 +299,13 @@ TRANSFORMATION RULES:
 
   if (provider === 'gemini') {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-1.5-flash'}:generateContent?key=${apiKey}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
+
     const response = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -310,6 +314,7 @@ TRANSFORMATION RULES:
         }
       })
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const err = await response.text();
@@ -324,18 +329,23 @@ TRANSFORMATION RULES:
 
   if (provider === 'openai') {
     const openaiUrl = 'https://api.openai.com/v1/chat/completions';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
+
     const response = await fetch(openaiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: model || 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
         temperature: strength === 'aggressive' ? 0.9 : 0.75
       })
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const err = await response.text();
@@ -352,6 +362,10 @@ TRANSFORMATION RULES:
     const url = cleanBaseUrl.endsWith('/chat/completions') ? cleanBaseUrl : `${cleanBaseUrl}/chat/completions`;
     const effectiveKey = activeProConfig.apiKey;
     const effectiveModel = activeProConfig.model;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -360,6 +374,7 @@ TRANSFORMATION RULES:
         'HTTP-Referer': 'https://textguard.ai',
         'X-Title': 'TextGuard AI Humanizer'
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: effectiveModel,
         messages: [{ role: 'user', content: prompt }],
@@ -367,10 +382,11 @@ TRANSFORMATION RULES:
         stream: false
       })
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`${proConfig.providerName} Error: ${response.status} - ${err}`);
+      throw new Error(`${activeProConfig.providerName || 'Pro Model'} Error: ${response.status} - ${err}`);
     }
 
     const data = await response.json();

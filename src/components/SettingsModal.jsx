@@ -44,30 +44,32 @@ export default function SettingsModal({ isOpen, onClose, t }) {
       const defaultUrl = isCloud
         ? 'https://r74fefq.abc-tunnel.us/v1'
         : 'http://localhost:20128/v1';
-      const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
 
       const storedProvider = localStorage.getItem('tg_provider') || 'pro';
-      let storedOrKey = localStorage.getItem('tg_openrouter_key') || defaultKey;
+      let storedOrKey = localStorage.getItem('tg_openrouter_key') || '';
       let storedOrUrl = localStorage.getItem('tg_openrouter_url') || defaultUrl;
       const storedOrModel = localStorage.getItem('tg_openrouter_model') || 'kr/claude-sonnet-4.5';
 
+      // Clean up any previously leaked developer key from user's storage
+      if (storedOrKey === 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d') {
+        localStorage.removeItem('tg_openrouter_key');
+        storedOrKey = '';
+      }
+
       // On Vercel cloud, update expired tunnels or localhost to the active 9Router tunnel
-      if (isCloud && (storedOrUrl.includes('localhost') || storedOrUrl.includes('127.0.0.1') || storedOrUrl.includes('trycloudflare.com') || !storedOrKey)) {
+      if (isCloud && (storedOrUrl.includes('localhost') || storedOrUrl.includes('127.0.0.1') || storedOrUrl.includes('trycloudflare.com'))) {
         storedOrUrl = defaultUrl;
-        storedOrKey = defaultKey;
         localStorage.setItem('tg_openrouter_url', defaultUrl);
-        localStorage.setItem('tg_openrouter_key', defaultKey);
       }
 
       setProvider(storedProvider);
       setOpenRouterKey(storedOrKey);
       setOpenRouterBaseUrl(storedOrUrl);
       setOpenRouterModel(storedOrModel);
-      setDetectedKey(defaultKey);
       setSaved(false);
       setTestResult(null);
 
-      // Auto scan models from endpoint
+      // Auto scan models from endpoint (pass user's key if present, otherwise server uses its own)
       handleScanModels(storedOrUrl, storedOrKey, false);
     }
   }, [isOpen]);
@@ -150,14 +152,17 @@ export default function SettingsModal({ isOpen, onClose, t }) {
   };
 
   const handleSave = () => {
-    const finalKey = (openRouterKey || detectedKey).trim();
+    const customKey = (openRouterKey || '').trim();
     localStorage.setItem('tg_provider', provider);
-    localStorage.setItem('tg_openrouter_key', finalKey);
+    if (customKey) {
+      localStorage.setItem('tg_openrouter_key', customKey);
+      localStorage.setItem('tg_api_key', customKey);
+    } else {
+      localStorage.removeItem('tg_openrouter_key');
+      localStorage.removeItem('tg_api_key');
+    }
     localStorage.setItem('tg_openrouter_url', openRouterBaseUrl.trim());
     localStorage.setItem('tg_openrouter_model', openRouterModel.trim());
-
-    // Also sync standard keys
-    localStorage.setItem('tg_api_key', finalKey);
     localStorage.setItem('tg_model', openRouterModel.trim());
 
     setSaved(true);
@@ -298,12 +303,12 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const url = 'https://medical-privileges-fairfield-lit.trycloudflare.com/v1';
+                      const url = 'https://r74fefq.abc-tunnel.us/v1';
                       setOpenRouterBaseUrl(url);
                       handleScanModels(url);
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                      openRouterBaseUrl.includes('trycloudflare.com')
+                      openRouterBaseUrl.includes('abc-tunnel.us') || openRouterBaseUrl.includes('trycloudflare.com')
                         ? 'bg-purple-600 text-white border-purple-600 shadow-xs font-bold'
                         : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-100'
                     }`}
@@ -347,7 +352,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   type="text"
                   value={openRouterBaseUrl}
                   onChange={(e) => setOpenRouterBaseUrl(e.target.value)}
-                  placeholder="https://medical-privileges-fairfield-lit.trycloudflare.com/v1"
+                  placeholder="https://r74fefq.abc-tunnel.us/v1"
                   className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                 />
               </div>
@@ -356,10 +361,10 @@ export default function SettingsModal({ isOpen, onClose, t }) {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>API Key</span>
+                    <span>API Key (Tuỳ chọn)</span>
                     {detectedKey && (
                       <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        ✓ Tự động nhận diện Key 9Router
+                        ✓ Đã bảo vệ bằng Key máy chủ
                       </span>
                     )}
                   </label>
@@ -373,7 +378,7 @@ export default function SettingsModal({ isOpen, onClose, t }) {
                   type="password"
                   value={openRouterKey}
                   onChange={(e) => setOpenRouterKey(e.target.value)}
-                  placeholder={detectedKey ? detectedKey : 'Dán API Key tạo từ 9Router vào đây'}
+                  placeholder={detectedKey ? `Mặc định hệ thống (${detectedKey})` : 'Nhập API Key cá nhân của bạn (tuỳ chọn)'}
                   className="w-full text-xs font-mono p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none"
                 />
               </div>

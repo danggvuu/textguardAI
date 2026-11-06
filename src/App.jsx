@@ -52,24 +52,24 @@ export default function App() {
 
   // Initial default sample & proactive 9Router migration
   useEffect(() => {
-    // Proactively initialize & clean up 9Router credentials on web
+    // Proactively clean up sensitive keys and initialize default endpoints
     const isCloud = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
     const defaultTunnel = 'https://r74fefq.abc-tunnel.us/v1';
-    const defaultKey = 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d';
 
     const currentUrl = localStorage.getItem('tg_openrouter_url') || '';
     const currentKey = localStorage.getItem('tg_openrouter_key') || '';
+
+    // Clean up any previously stored hardcoded developer key from user's localStorage
+    if (currentKey === 'sk-45245fa5a3b0a8f8-rrjkfm-9ecb8a7d') {
+      localStorage.removeItem('tg_openrouter_key');
+    }
 
     if (isCloud) {
       if (!currentUrl || currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1') || currentUrl.includes('trycloudflare.com')) {
         localStorage.setItem('tg_openrouter_url', defaultTunnel);
       }
-      if (!currentKey || !currentKey.startsWith('sk-')) {
-        localStorage.setItem('tg_openrouter_key', defaultKey);
-      }
     } else {
       if (!currentUrl) localStorage.setItem('tg_openrouter_url', 'http://localhost:20128/v1');
-      if (!currentKey) localStorage.setItem('tg_openrouter_key', defaultKey);
     }
 
     if (!localStorage.getItem('tg_provider')) {

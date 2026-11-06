@@ -1,4 +1,5 @@
 import app from './app.js';
+import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -9,21 +10,24 @@ const distPath = path.join(__dirname, '../dist');
 
 const PORT = process.env.PORT || 3001;
 
-// Serve frontend build if dist exists (when running locally)
+// Secure static serving for production & local preview
+// Prevents directory traversal attacks by using express.static with strict path boundaries
 if (fs.existsSync(distPath)) {
-  app.use((req, res, next) => {
-    // Let static handler or index.html handle non-api requests
-    if (req.method === 'GET' && !req.path.startsWith('/api')) {
-      const filePath = path.join(distPath, req.path);
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        return res.sendFile(filePath);
-      }
-      return res.sendFile(path.join(distPath, 'index.html'));
+  app.use(express.static(distPath, {
+    index: false,
+    dotfiles: 'ignore',
+    fallthrough: true
+  }));
+
+  // Safe SPA fallback: only serves index.html for GET requests that do not match /api
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
     }
-    next();
+    return res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 TextGuard AI is running on http://localhost:${PORT}`);
+  console.log(`🚀 TextGuard AI is running securely on http://localhost:${PORT}`);
 });
