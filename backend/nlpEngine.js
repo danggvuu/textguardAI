@@ -262,6 +262,105 @@ export function humanizeLocal(text, options = {}) {
 }
 
 /**
+ * Adversarial Post-Processing & Inversion Filter:
+ * Operates on raw text (or LLM output) to:
+ * 1. Purge all residual AI bias tokens & formulaic clichés (VI & EN).
+ * 2. Invert syntactic monotony by forcing high Burstiness (sentence length variance).
+ * 3. Elevate contextual Perplexity by injecting natural human idioms and punctuation cadence.
+ */
+export function adversarialPostProcess(text, options = {}) {
+  if (!text || typeof text !== 'string') return '';
+  const { strength = 'balanced', purpose = 'general' } = options;
+  const lang = detectLanguage(text);
+
+  let processed = text;
+
+  // 1. Cliché scrubber (removes LLM tells)
+  const cliches = lang === 'vi' ? VI_CLICHES : EN_CLICHES;
+  for (const item of cliches) {
+    processed = processed.replace(item.pattern, () => {
+      const idx = Math.floor(Math.random() * item.replacements.length);
+      return item.replacements[idx];
+    });
+  }
+
+  // 2. Eradicate subtle AI dead giveaways
+  if (lang === 'vi') {
+    processed = processed
+      .replace(/\b(?:đáng chú ý là|đặc biệt là)\b/gi, (match) => Math.random() > 0.5 ? 'rõ thấy nhất là' : match)
+      .replace(/\b(?:nói cách khác|hay nói một cách khác)\b/gi, (match) => Math.random() > 0.5 ? 'hiểu đơn giản là' : match)
+      .replace(/\b(?:nhìn chung|tổng thể mà nói)\b/gi, (match) => Math.random() > 0.5 ? 'nhìn bao quát,' : match)
+      .replace(/\b(?:có thể thấy rằng|chúng ta có thể thấy)\b/gi, (match) => Math.random() > 0.5 ? 'rõ ràng' : match)
+      .replace(/\b(?:không những vậy mà còn|chẳng những vậy mà)\b/gi, 'đồng thời');
+  } else {
+    processed = processed
+      .replace(/\b(?:it is worth noting that|notably)\b/gi, 'worth noting:')
+      .replace(/\b(?:in other words)\b/gi, 'simply put,')
+      .replace(/\b(?:a wide array of|a myriad of)\b/gi, 'many')
+      .replace(/\b(?:fosters?|fostering)\b/gi, (m) => m.endsWith('ing') ? 'building' : (m.endsWith('s') ? 'builds' : 'build'))
+      .replace(/\b(?:delves? into|delving into)\b/gi, (m) => m.endsWith('ing') ? 'looking into' : 'exploring')
+      .replace(/\b(?:testament to)\b/gi, 'proof of')
+      .replace(/\b(?:tapestry of)\b/gi, 'blend of');
+  }
+
+  // 3. Burstiness Inversion & Rhythm Diversification
+  const paragraphs = processed.split(/\n\n+/);
+  const transformedParas = paragraphs.map((para) => {
+    const rawSentences = splitSentences(para);
+    if (rawSentences.length <= 1) return para;
+
+    const modified = [];
+    for (let i = 0; i < rawSentences.length; i++) {
+      let s = rawSentences[i].trim();
+      if (!s) continue;
+
+      const words = s.split(/\s+/).filter(Boolean);
+
+      // Break long uniform sentences into varied cadences
+      if ((strength === 'aggressive' || (strength === 'balanced' && Math.random() > 0.35)) && words.length > 22) {
+        if (lang === 'vi') {
+          const splitIdx = s.search(/,\s+(?:đồng thời|tuy nhiên|nhưng|do đó|vì vậy|qua đó|đặc biệt)/i);
+          if (splitIdx > 20 && splitIdx < s.length - 15) {
+            const part1 = s.slice(0, splitIdx).trim() + '.';
+            const remainder = s.slice(splitIdx + 1).trim();
+            const part2 = remainder.charAt(0).toUpperCase() + remainder.slice(1);
+            modified.push(part1);
+            modified.push(part2);
+            continue;
+          }
+        } else {
+          const splitIdx = s.search(/,\s+(?:and|which|however|therefore|while|whereas|meaning)/i);
+          if (splitIdx > 25 && splitIdx < s.length - 15) {
+            const part1 = s.slice(0, splitIdx).trim() + '.';
+            const remainder = s.slice(splitIdx + 1).trim();
+            const part2 = remainder.charAt(0).toUpperCase() + remainder.slice(1);
+            modified.push(part1);
+            modified.push(part2);
+            continue;
+          }
+        }
+      }
+
+      // If sentence has 2 commas, occasionally convert one to an em dash for human cadence
+      if (s.includes(',') && !s.includes('—') && words.length > 14 && Math.random() < 0.25) {
+        s = s.replace(/,\s+([^,]+),/, ' — $1 —');
+      }
+
+      modified.push(s);
+    }
+
+    return modified.join(' ')
+      .replace(/,\s*,+/g, ', ')
+      .replace(/\s+,/g, ', ')
+      .replace(/\s+\./g, '.')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  });
+
+  return transformedParas.join('\n\n');
+}
+
+/**
  * Humanize using an External LLM (e.g. Gemini or OpenAI API) if the user supplied an API key
  */
 export async function humanizeWithLLM(text, options = {}, config = {}) {

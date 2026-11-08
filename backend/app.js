@@ -7,7 +7,7 @@ import mammoth from 'mammoth';
 import dotenv from 'dotenv';
 import path from 'path';
 import { URL } from 'url';
-import { humanizeLocal, humanizeWithLLM } from './nlpEngine.js';
+import { humanizeLocal, humanizeWithLLM, adversarialPostProcess } from './nlpEngine.js';
 import { detectAIText } from './detectorEngine.js';
 import { PRESET_SAMPLES } from './presets.js';
 import {
@@ -593,6 +593,7 @@ app.post('/api/humanize', async (req, res) => {
 
     const effectiveKey = resolveApiKey(apiKey, baseUrl) || DEFAULT_9ROUTER_KEY;
 
+    // 1. Initial Generation (LLM Semantic Core or Local NLP)
     if (provider !== 'free') {
       try {
         humanizedText = await humanizeWithLLM(
@@ -611,8 +612,19 @@ app.post('/api/humanize', async (req, res) => {
       engineUsed = 'local-nlp';
     }
 
+    // 2. Adversarial Post-Processing & Inversion Filter (Burstiness + Cliché Scrubbing)
+    humanizedText = adversarialPostProcess(humanizedText, { strength, readability, purpose });
+
+    // 3. Before & After Forensic Evaluation
     const beforeStats = await detectAIText(text);
-    const afterStats = await detectAIText(humanizedText);
+    let afterStats = await detectAIText(humanizedText);
+
+    // 4. Closed-Loop Adversarial Refinement
+    // If internal detector still catches traces (> 18% AI), run an aggressive targeted restructuring pass
+    if (afterStats.aiScore > 18) {
+      humanizedText = adversarialPostProcess(humanizedText, { strength: 'aggressive', readability, purpose });
+      afterStats = await detectAIText(humanizedText);
+    }
 
     const processingTimeMs = Date.now() - startTime;
 
