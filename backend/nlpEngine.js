@@ -6,58 +6,63 @@
 
 import { resolveApiKey, resolve9RouterModel, resolveProConfig } from './keyHelper.js';
 
+// Unicode-aware Vietnamese word boundary pattern helper
+function viPattern(phrase) {
+  return new RegExp(`(?<=^|[\\s,;:.!?"'\\[\\]()])(?:${phrase})(?=$|[\\s,;:.!?"'\\[\\]()])`, 'gi');
+}
+
 // Vietnamese AI Clichés and natural human alternatives
 const VI_CLICHES = [
   {
-    pattern: /\b(?:không thể phủ nhận rằng|không ai có thể phủ nhận rằng)\s+(?:trong bối cảnh hiện nay|trong thời đại ngày nay|trong thời đại số hóa ngày nay|trong kỷ nguyên số hiện nay|trong kỷ nguyên số)\b/gi,
+    pattern: viPattern('(?:không thể phủ nhận rằng|không ai có thể phủ nhận rằng)\\s+(?:trong bối cảnh hiện nay|trong thời đại ngày nay|trong thời đại số hóa ngày nay|trong kỷ nguyên số hiện nay|trong kỷ nguyên số)'),
     replacements: ['Thực tế thời gian qua,', 'Rõ ràng trong thời buổi số hóa,', 'Có thể thấy ngày nay,', 'Xét trong bối cảnh hiện tại,']
   },
   {
-    pattern: /\b(?:không thể phủ nhận rằng|không ai có thể phủ nhận rằng)\b/gi,
+    pattern: viPattern('không thể phủ nhận rằng|không ai có thể phủ nhận rằng'),
     replacements: ['Rõ ràng là', 'Thực tế cho thấy', 'Có thể thấy', 'Ai cũng thấy', 'Đúng là']
   },
   {
-    pattern: /\b(?:trong bối cảnh hiện nay|trong thời đại ngày nay|trong thời đại số hóa ngày nay|trong kỷ nguyên số hiện nay|trong xã hội hiện đại|trong kỷ nguyên số)\b/gi,
+    pattern: viPattern('trong bối cảnh hiện nay|trong thời đại ngày nay|trong thời đại số hóa ngày nay|trong kỷ nguyên số hiện nay|trong xã hội hiện đại|trong kỷ nguyên số'),
     replacements: ['Hiện giờ,', 'Thời buổi này,', 'Dạo gần đây,', 'Ngày nay,', 'Vào lúc này,']
   },
   {
-    pattern: /\b(?:đóng một vai trò vô cùng quan trọng|đóng vai trò vô cùng quan trọng|đóng vai trò then chốt|đóng vai trò cốt lõi|giữ vai trò quan trọng|đang đóng một vai trò vô cùng quan trọng|đang đóng vai trò quan trọng)\b/gi,
+    pattern: viPattern('đóng một vai trò vô cùng quan trọng|đóng vai trò vô cùng quan trọng|đóng vai trò then chốt|đóng vai trò cốt lõi|giữ vai trò quan trọng|đang đóng một vai trò vô cùng quan trọng|đang đóng vai trò quan trọng'),
     replacements: ['rất cần thiết', 'là yếu tố quyết định', 'ảnh hưởng trực tiếp', 'giữ vị trí chủ chốt', 'không thể thiếu']
   },
   {
-    pattern: /\b(?:nói tóm lại|tóm lại là|kết luận lại|nhìn chung lại)\b/gi,
-    replacements: ['Tóm gọn lại,', 'Nói chung,', 'Điểm mấu chốt là', 'Cuối cùng thì', 'Nhìn tổng thể,']
+    pattern: viPattern('nói tóm lại|tóm lại là|kết luận lại|nhìn chung lại|nhìn tổng thể'),
+    replacements: ['Tóm gọn lại,', 'Nói chung,', 'Điểm mấu chốt là', 'Cuối cùng thì', 'Về cơ bản,']
   },
   {
-    pattern: /\b(?:hơn nữa|bên cạnh đó|ngoài ra còn có|thêm vào đó)\b/gi,
+    pattern: viPattern('hơn nữa|bên cạnh đó|ngoài ra còn có|thêm vào đó'),
     replacements: ['Chưa kể,', 'Đồng thời,', 'Mặt khác,', 'Đáng chú ý là', 'Cũng phải kể đến']
   },
   {
-    pattern: /\b(?:một cách toàn diện|một cách sâu sắc|một cách triệt để)\b/gi,
+    pattern: viPattern('một cách toàn diện|một cách sâu sắc|một cách triệt để'),
     replacements: ['kỹ lưỡng', 'từ nhiều góc độ', 'thấu đáo', 'tận gốc', 'tường tận']
   },
   {
-    pattern: /\b(?:mang lại nhiều lợi ích to lớn|đem lại nhiều giá trị thiết thực)\b/gi,
+    pattern: viPattern('mang lại nhiều lợi ích to lớn|đem lại nhiều giá trị thiết thực'),
     replacements: ['giúp ích rất nhiều', 'tạo ra giá trị rõ rệt', 'thực sự hiệu quả', 'đem lại nhiều kết quả tốt']
   },
   {
-    pattern: /\b(?:góp phần không nhỏ vào|góp phần thúc đẩy)\b/gi,
+    pattern: viPattern('góp phần không nhỏ vào|góp phần thúc đẩy'),
     replacements: ['giúp đẩy nhanh', 'tạo đòn bẩy cho', 'tiếp thêm sức mạnh cho', 'trực tiếp hỗ trợ']
   },
   {
-    pattern: /\b(?:không chỉ dừng lại ở đó mà còn|không những thế mà còn)\b/gi,
+    pattern: viPattern('không chỉ dừng lại ở đó mà còn|không những thế mà còn'),
     replacements: ['Chẳng những vậy,', 'Xa hơn nữa,', 'Song song với đó,']
   },
   {
-    pattern: /\b(?:vô hình trung|vô hình chung)\b/gi,
+    pattern: viPattern('vô hình trung|vô hình chung'),
     replacements: ['tình cờ', 'ngẫu nhiên lại', 'khiến cho']
   },
   {
-    pattern: /\b(?:là một minh chứng rõ nét cho|là minh chứng hùng hồn cho)\b/gi,
+    pattern: viPattern('là một minh chứng rõ nét cho|là minh chứng hùng hồn cho'),
     replacements: ['chứng minh rõ', 'cho thấy rất cụ thể', 'làm nổi bật']
   },
   {
-    pattern: /\b(?:mở ra một chân trời mới|mở ra một kỷ nguyên mới)\b/gi,
+    pattern: viPattern('mở ra một chân trời mới|mở ra một kỷ nguyên mới'),
     replacements: ['mở ra nhiều hướng đi mới', 'tạo ra bước ngoặt lớn', 'mở đường cho hướng tiếp cận mới']
   }
 ];
@@ -73,7 +78,7 @@ const EN_CLICHES = [
     replacements: ['Also,', 'On top of that,', 'Beyond that,', 'What is more,', 'Plus,']
   },
   {
-    pattern: /\b(?:it is crucial to remember that|it is vital to understand that|it is important to note that)\b/gi,
+    pattern: /\b(?:it is crucial to remember that|it is vital to understand that|it is important to note that|it is important to remember that|it is worth noting that)\b/gi,
     replacements: ['Keep in mind that', 'Notice that', 'The key thing here is', 'Don\'t forget that', 'Worth noting:']
   },
   {
@@ -89,11 +94,11 @@ const EN_CLICHES = [
     replacements: ['dig into', 'examine', 'explore', 'take a closer look at', 'break down']
   },
   {
-    pattern: /\b(?:tapestry of|rich tapestry)\b/gi,
-    replacements: ['blend of', 'mosaic of', 'network of', 'mix of']
+    pattern: /\b(?:a rich tapestry of|rich tapestry of|a vibrant tapestry of|tapestry of|rich tapestry)\b/gi,
+    replacements: ['a solid mix of', 'a blend of', 'a mosaic of', 'a diverse set of']
   },
   {
-    pattern: /\b(?:a testament to|stands as a testament)\b/gi,
+    pattern: /\b(?:a testament to|stands as a testament to|stands as a testament)\b/gi,
     replacements: ['clear proof of', 'shows just how', 'highlights the impact of']
   },
   {
